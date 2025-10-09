@@ -108,45 +108,63 @@ Write-Host ""
 
 Write-Log "Checking for script updates..."
 
+# Temporarily disable strict error handling for git operations
+$previousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+
 # Check if we're in a git repository
-try {
-    $gitDir = & git -C $PSScriptRoot rev-parse --git-dir 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        Write-Log "Git repository detected, checking for updates..."
+$gitDir = & git -C $PSScriptRoot rev-parse --git-dir 2>&1
+$isGitRepo = ($LASTEXITCODE -eq 0)
 
-        # Fetch latest changes
-        & git -C $PSScriptRoot fetch origin 2>$null
+if ($isGitRepo) {
+    Write-Log "Git repository detected, checking for updates..."
 
+    # Fetch latest changes
+    $fetchOutput = & git -C $PSScriptRoot fetch origin 2>&1
+    $fetchSuccess = ($LASTEXITCODE -eq 0)
+
+    if ($fetchSuccess) {
         # Get local and remote commit hashes
-        $localCommit = & git -C $PSScriptRoot rev-parse HEAD
-        $remoteCommit = & git -C $PSScriptRoot rev-parse '@{u}' 2>$null
+        $localCommit = & git -C $PSScriptRoot rev-parse HEAD 2>&1
+        $remoteCommit = & git -C $PSScriptRoot rev-parse '@{u}' 2>&1
+        $hasUpstream = ($LASTEXITCODE -eq 0)
 
-        if ($LASTEXITCODE -ne 0) {
+        if (-not $hasUpstream) {
             # No upstream configured, skip update check
+            Write-Log "No upstream branch configured, skipping update check"
             $remoteCommit = $localCommit
         }
 
         if ($localCommit -ne $remoteCommit) {
             Write-Log "Updates found! Pulling latest changes..."
-            & git -C $PSScriptRoot pull
+            $pullOutput = & git -C $PSScriptRoot pull 2>&1
 
             if ($LASTEXITCODE -eq 0) {
-                Write-Log "Re-executing updated script..."
+                Write-Log "Updates applied successfully. Re-executing script..."
                 Write-Host ""
+
+                # Restore error handling before re-execution
+                $ErrorActionPreference = $previousErrorAction
+
                 & $MyInvocation.MyCommand.Path @PSBoundParameters
                 exit $LASTEXITCODE
             } else {
-                Write-WarningLog "Failed to pull updates, continuing with current version"
+                Write-WarningLog "Failed to pull updates: git pull returned exit code $LASTEXITCODE"
+                Write-WarningLog "Continuing with current version"
             }
         } else {
             Write-Log "Script is up to date"
         }
     } else {
-        Write-WarningLog "Not running from a git repository. Self-update disabled."
+        Write-WarningLog "Failed to fetch updates from remote repository"
+        Write-WarningLog "Continuing with current version"
     }
-} catch {
-    Write-WarningLog "Could not check for updates: $_"
+} else {
+    Write-WarningLog "Not running from a git repository. Self-update disabled."
 }
+
+# Restore strict error handling
+$ErrorActionPreference = $previousErrorAction
 
 Write-Host ""
 

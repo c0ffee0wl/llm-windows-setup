@@ -70,6 +70,31 @@ function Test-CommandExists {
     $null -ne (Get-Command $Command -ErrorAction SilentlyContinue)
 }
 
+function Test-PythonAvailable {
+    <#
+    .SYNOPSIS
+        Tests if Python is actually available and working
+    .DESCRIPTION
+        On Windows 11, 'python' command may exist as an App Execution Alias that opens
+        the Microsoft Store instead of running Python. This function verifies Python
+        is actually installed and working by checking version output.
+    #>
+    try {
+        # Try to get Python version
+        $pythonVersionOutput = & python --version 2>&1
+
+        # Check if output contains "Python" (indicates real Python installation)
+        # and that exit code is 0
+        if ($LASTEXITCODE -eq 0 -and $pythonVersionOutput -match "Python \d+\.\d+") {
+            return $true
+        }
+
+        return $false
+    } catch {
+        return $false
+    }
+}
+
 # ============================================================================
 # Phase 0: Admin Check and Chocolatey Installation
 # ============================================================================
@@ -158,7 +183,7 @@ if (-not (Test-CommandExists "git")) {
 }
 
 # Install Python 3.13
-if (-not (Test-CommandExists "python")) {
+if (-not (Test-PythonAvailable)) {
     Write-Log "Installing Python 3.13..."
     try {
         if (Test-Administrator) {
@@ -177,7 +202,8 @@ if (-not (Test-CommandExists "python")) {
     # Refresh PATH
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 } else {
-    Write-Log "Python is already installed"
+    $pythonVersion = & python --version 2>&1
+    Write-Log "Python is already installed ($pythonVersion)"
 }
 
 # Install Node.js 22.x

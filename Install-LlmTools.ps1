@@ -505,7 +505,7 @@ if ($azureConfigured) {
 "@
 
     New-Item -ItemType Directory -Path $llmConfigDir -Force | Out-Null
-    Set-Content -Path $extraModelsFile -Value $yamlContent -Encoding UTF8
+    Set-Content -Path $extraModelsFile -Value $yamlContent -Encoding Ascii
 
     # Set default model if not already set
     $defaultModelFile = Join-Path $llmConfigDir "default_model.txt"

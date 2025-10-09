@@ -245,14 +245,17 @@ Write-Log "Installing/upgrading pipx..."
 try {
     & python -m pip install --upgrade pipx --user --quiet
 
-    # Ensure pipx path is in PATH
+    # Ensure pipx paths are set up (adds to persistent PATH)
+    & python -m pipx ensurepath --force
+
+    # Refresh PATH in current session to include Python Scripts directory
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
+    # Also ensure .local\bin is in current session PATH
     $pipxBinPath = "$env:USERPROFILE\.local\bin"
     if ($env:Path -notlike "*$pipxBinPath*") {
         $env:Path = "$pipxBinPath;$env:Path"
     }
-
-    # Ensure pipx paths are set up
-    & python -m pipx ensurepath --force
 } catch {
     Write-ErrorLog "Failed to install pipx: $_"
     exit 1

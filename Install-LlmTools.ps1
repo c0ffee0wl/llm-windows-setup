@@ -531,9 +531,9 @@ foreach ($plugin in $plugins) {
     Write-Log "Installing/updating $plugin..."
     try {
         # Try upgrade first, if it fails, try install
-        $upgradeResult = & llm install $plugin --upgrade 2>&1
+        & llm install $plugin --upgrade
         if ($LASTEXITCODE -ne 0) {
-            & llm install $plugin 2>&1
+            & llm install $plugin
         }
     } catch {
         Write-WarningLog "Failed to install $plugin : $_"
@@ -550,7 +550,7 @@ foreach ($plugin in $gitPlugins) {
             continue
         }
 
-        $installResult = & llm install $plugin --upgrade 2>&1
+        & llm install $plugin --upgrade
         if ($LASTEXITCODE -ne 0) {
             Write-WarningLog "Failed to install $plugin"
             Write-WarningLog "This is optional and can be installed manually later with: llm install $plugin"
@@ -651,9 +651,9 @@ Refresh-EnvironmentPath
 # Install repomix
 Write-Log "Installing/updating repomix..."
 try {
-    $repomixOutput = & npm install -g repomix 2>&1
+    & npm @("install", "-g", "repomix")
     if ($LASTEXITCODE -ne 0) {
-        Write-WarningLog "Failed to install repomix: $repomixOutput"
+        Write-WarningLog "Failed to install repomix"
     }
 } catch {
     Write-WarningLog "Failed to install repomix: $_"
@@ -667,12 +667,14 @@ $ErrorActionPreference = "Continue"
 $gitingestInstalled = & uv tool list 2>&1 | Select-String "gitingest"
 if ($gitingestInstalled) {
     & uv tool upgrade gitingest
+    if ($LASTEXITCODE -ne 0) {
+        Write-WarningLog "Failed to upgrade gitingest"
+    }
 } else {
     & uv tool install gitingest
-}
-
-if ($LASTEXITCODE -ne 0) {
-    Write-WarningLog "Failed to install gitingest"
+    if ($LASTEXITCODE -ne 0) {
+        Write-WarningLog "Failed to install gitingest"
+    }
 }
 
 $ErrorActionPreference = "Stop"
@@ -685,12 +687,14 @@ $ErrorActionPreference = "Continue"
 $filesPromptInstalled = & uv tool list 2>&1 | Select-String "files-to-prompt"
 if ($filesPromptInstalled) {
     & uv tool upgrade files-to-prompt
+    if ($LASTEXITCODE -ne 0) {
+        Write-WarningLog "Failed to upgrade files-to-prompt"
+    }
 } else {
     & uv tool install "git+https://github.com/danmackinlay/files-to-prompt"
-}
-
-if ($LASTEXITCODE -ne 0) {
-    Write-WarningLog "Failed to install files-to-prompt"
+    if ($LASTEXITCODE -ne 0) {
+        Write-WarningLog "Failed to install files-to-prompt"
+    }
 }
 
 $ErrorActionPreference = "Stop"
@@ -707,9 +711,9 @@ Write-Host ""
 # Install Claude Code
 Write-Log "Installing/updating Claude Code..."
 try {
-    $claudeCodeOutput = & npm install -g "@anthropic-ai/claude-code" 2>&1
+    & npm @("install", "-g", "@anthropic-ai/claude-code")
     if ($LASTEXITCODE -ne 0) {
-        Write-WarningLog "Failed to install Claude Code: $claudeCodeOutput"
+        Write-WarningLog "Failed to install Claude Code"
     }
 } catch {
     Write-WarningLog "Failed to install Claude Code: $_"
@@ -718,9 +722,9 @@ try {
 # Install OpenCode
 Write-Log "Installing/updating OpenCode..."
 try {
-    $openCodeOutput = & npm install -g "opencode-ai@latest" 2>&1
+    & npm @("install", "-g", "opencode-ai@latest")
     if ($LASTEXITCODE -ne 0) {
-        Write-WarningLog "Failed to install OpenCode: $openCodeOutput"
+        Write-WarningLog "Failed to install OpenCode"
     }
 } catch {
     Write-WarningLog "Failed to install OpenCode: $_"

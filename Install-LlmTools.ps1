@@ -650,7 +650,7 @@ if (-not (Test-Administrator)) {
     $npmGlobalPrefix = Join-Path $env:USERPROFILE ".npm-global"
 
     try {
-        & npm config set prefix $npmGlobalPrefix
+        npm config set prefix $npmGlobalPrefix
 
         # Add to PATH for current session
         if ($env:Path -notlike "*$npmGlobalPrefix*") {
@@ -669,7 +669,7 @@ Refresh-EnvironmentPath
 # Install repomix
 Write-Log "Installing/updating repomix..."
 try {
-    & npm install -g repomix
+    npm install -g repomix
     if ($LASTEXITCODE -ne 0) {
         Write-WarningLog "Failed to install repomix"
     }
@@ -729,7 +729,7 @@ Write-Host ""
 # Install Claude Code
 Write-Log "Installing/updating Claude Code..."
 try {
-    & npm install -g "@anthropic-ai/claude-code"
+    npm install -g "@anthropic-ai/claude-code"
     if ($LASTEXITCODE -ne 0) {
         Write-WarningLog "Failed to install Claude Code"
     }
@@ -740,7 +740,7 @@ try {
 # Install OpenCode
 Write-Log "Installing/updating OpenCode..."
 try {
-    & npm install -g "opencode-ai@latest"
+    npm install -g "opencode-ai@latest"
     if ($LASTEXITCODE -ne 0) {
         Write-WarningLog "Failed to install OpenCode"
     }

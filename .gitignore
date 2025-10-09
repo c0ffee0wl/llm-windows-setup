@@ -201,7 +201,28 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Claude
+.claude
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Windows-specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Windows PowerShell
+*.ps1xml
+
+# Windows shortcuts
+*.url
+
+# Temporary files
+*.tmp
+*.temp
+~*

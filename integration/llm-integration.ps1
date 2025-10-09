@@ -123,27 +123,9 @@ function llm {
 # Clipboard Aliases (macOS compatibility)
 # ============================================================================
 
-function pbcopy {
-    <#
-    .SYNOPSIS
-        Copy input to clipboard (macOS pbcopy equivalent)
-
-    .EXAMPLE
-        "Hello" | pbcopy
-    #>
-    $input | Set-Clipboard
-}
-
-function pbpaste {
-    <#
-    .SYNOPSIS
-        Output clipboard contents (macOS pbpaste equivalent)
-
-    .EXAMPLE
-        pbpaste
-    #>
-    Get-Clipboard
-}
+# Provide macOS-style clipboard commands for cross-platform scripts
+Set-Alias pbcopy Set-Clipboard
+Set-Alias pbpaste Get-Clipboard
 
 # ============================================================================
 # PSReadLine Key Bindings
@@ -195,4 +177,4 @@ if (Get-Module -ListAvailable -Name PSReadLine) {
 # ============================================================================
 
 # Uncomment to show a message when the integration is loaded
-# Write-Host "LLM Tools Integration loaded. Press Ctrl+N for AI command completion." -ForegroundColor Green
+Write-Host "LLM Tools Integration loaded. Press Ctrl+N for AI command completion." -ForegroundColor Green

@@ -28,17 +28,18 @@ This allows users to:
 
 ### Installation Phases
 
-The script executes in 9 sequential phases:
+The script executes in 10 sequential phases:
 
-0. **Admin Check & Chocolatey** - Install Chocolatey if missing (admin required)
-1. **Prerequisites** - Install Python 3, Node.js 22.x, Git, jq via Chocolatey
-2. **Python Tools** - Install pipx, uv (user-scoped via `--user`)
-3. **LLM Core** - Install `llm` via `uv tool install`
-4. **Azure OpenAI Config** - Interactive setup (optional, first-run detection)
-5. **LLM Plugins** - Install 12 plugins including llm-cmd, llm-anthropic, llm-jq
-6. **LLM Templates** - Copy assistant.yaml with smart update detection
-7. **Additional Tools** - Install repomix, gitingest, files-to-prompt, Claude Code, OpenCode
-8. **PowerShell Integration** - Add sourcing to PS5 and PS7 profiles
+0. **Self-Update** - Check git repository for updates, auto-pull and re-execute if needed
+1. **Admin Check & Chocolatey** - Install Chocolatey if missing (admin required)
+2. **Prerequisites** - Install Python 3, Node.js 22.x, Git, jq via Chocolatey
+3. **Python Tools** - Install pipx, uv (user-scoped via `--user`)
+4. **LLM Core** - Install `llm` via `uv tool install`
+5. **Azure OpenAI Config** - Interactive setup (optional, first-run detection)
+6. **LLM Plugins** - Install plugins including llm-cmd, llm-anthropic, llm-jq, llm-tools-sqlite
+7. **LLM Templates** - Copy assistant.yaml with smart update detection
+8. **Additional Tools** - Install repomix, gitingest, files-to-prompt, Claude Code, OpenCode
+9. **PowerShell Integration** - Add sourcing to PS5 and PS7 profiles
 
 ### PowerShell Integration Architecture
 
@@ -149,7 +150,14 @@ When editing `integration/llm-integration.ps1`:
 - **NO auto-logging** - No session logging
 - **NO context tool** - No terminal history integration
 - **NO Claude Code Router** - Not included
-- **NO auto-update on profile load** - Manual updates only
+
+### Self-Update Mechanism
+
+- **Phase 0: Self-Update** - Checks for script updates from git repository on every run
+- Auto-detects if running from a git repository
+- Compares local commit with remote tracking branch
+- Auto-pulls updates and re-executes script if changes detected
+- Falls back gracefully if not in a git repository or if update fails
 
 ### Windows-Specific Considerations
 

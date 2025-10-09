@@ -96,12 +96,60 @@ function Test-PythonAvailable {
 }
 
 # ============================================================================
-# Phase 0: Admin Check and Chocolatey Installation
+# Phase 0: Self-Update (Git Pull)
 # ============================================================================
 
 Write-Log "LLM Tools Installation Script for Windows"
 Write-Log "=========================================="
 Write-Host ""
+
+Write-Log "Checking for script updates..."
+
+# Check if we're in a git repository
+try {
+    $gitDir = & git -C $ScriptDir rev-parse --git-dir 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Log "Git repository detected, checking for updates..."
+
+        # Fetch latest changes
+        & git -C $ScriptDir fetch origin 2>$null
+
+        # Get local and remote commit hashes
+        $localCommit = & git -C $ScriptDir rev-parse HEAD
+        $remoteCommit = & git -C $ScriptDir rev-parse '@{u}' 2>$null
+
+        if ($LASTEXITCODE -ne 0) {
+            # No upstream configured, skip update check
+            $remoteCommit = $localCommit
+        }
+
+        if ($localCommit -ne $remoteCommit) {
+            Write-Log "Updates found! Pulling latest changes..."
+            & git -C $ScriptDir pull
+
+            if ($LASTEXITCODE -eq 0) {
+                Write-Log "Re-executing updated script..."
+                Write-Host ""
+                & $MyInvocation.MyCommand.Path @PSBoundParameters
+                exit $LASTEXITCODE
+            } else {
+                Write-Warning "Failed to pull updates, continuing with current version"
+            }
+        } else {
+            Write-Log "Script is up to date"
+        }
+    } else {
+        Write-Warning "Not running from a git repository. Self-update disabled."
+    }
+} catch {
+    Write-Warning "Could not check for updates: $_"
+}
+
+Write-Host ""
+
+# ============================================================================
+# Phase 1: Admin Check and Chocolatey Installation
+# ============================================================================
 
 # Check if Chocolatey is installed
 $chocoInstalled = Test-CommandExists "choco"
@@ -466,25 +514,50 @@ $plugins = @(
     "llm-anthropic",
     "llm-cmd",
     "llm-cmd-comp",
-    "llm-tools-quickjs",
     "llm-tools-sqlite",
     "llm-fragments-site-text",
     "llm-fragments-pdf",
     "llm-fragments-github",
-    "llm-jq",
+    "llm-jq"
+)
+
+# Git-based plugins (may require git to be properly configured)
+$gitPlugins = @(
     "git+https://github.com/damonmcminn/llm-templates-fabric"
 )
 
+# Install regular plugins
 foreach ($plugin in $plugins) {
     Write-Log "Installing/updating $plugin..."
     try {
         # Try upgrade first, if it fails, try install
         $upgradeResult = & llm install $plugin --upgrade 2>&1
         if ($LASTEXITCODE -ne 0) {
-            & llm install $plugin
+            & llm install $plugin 2>&1
         }
     } catch {
         Write-Warning "Failed to install $plugin : $_"
+    }
+}
+
+# Install git-based plugins (with better error handling)
+foreach ($plugin in $gitPlugins) {
+    Write-Log "Installing/updating $plugin..."
+    try {
+        # Verify git is available before attempting
+        if (-not (Test-CommandExists "git")) {
+            Write-Warning "Git is not available. Skipping $plugin"
+            continue
+        }
+
+        $installResult = & llm install $plugin --upgrade 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to install $plugin"
+            Write-Warning "This is optional and can be installed manually later with: llm install $plugin"
+        }
+    } catch {
+        Write-Warning "Failed to install $plugin : $_"
+        Write-Warning "This is optional and can be installed manually later"
     }
 }
 
@@ -546,22 +619,42 @@ Write-Host ""
 Write-Log "Installing/updating additional tools..."
 Write-Host ""
 
+# Verify npm is available
+if (-not (Test-CommandExists "npm")) {
+    Write-ErrorLog "npm is not available. Cannot install npm-based tools."
+    Write-ErrorLog "Please ensure Node.js and npm are properly installed and in PATH."
+    exit 1
+}
+
 # Configure npm for user-level global installs (if not admin)
 if (-not (Test-Administrator)) {
     Write-Log "Configuring npm for user-level global installs..."
     $npmGlobalPrefix = "$env:USERPROFILE\.npm-global"
-    & npm config set prefix $npmGlobalPrefix
 
-    # Add to PATH
-    if ($env:Path -notlike "*$npmGlobalPrefix*") {
-        $env:Path = "$npmGlobalPrefix;$env:Path"
+    try {
+        & npm config set prefix $npmGlobalPrefix
+
+        # Add to PATH for current session
+        if ($env:Path -notlike "*$npmGlobalPrefix*") {
+            $env:Path = "$npmGlobalPrefix;$env:Path"
+        }
+
+        Write-Log "npm configured to use: $npmGlobalPrefix"
+    } catch {
+        Write-Warning "Failed to configure npm prefix: $_"
     }
 }
+
+# Refresh PATH to ensure npm and node are accessible
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 
 # Install repomix
 Write-Log "Installing/updating repomix..."
 try {
-    & npm install -g repomix
+    $repomixOutput = & npm install -g repomix 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to install repomix: $repomixOutput"
+    }
 } catch {
     Write-Warning "Failed to install repomix: $_"
 }
@@ -614,7 +707,10 @@ Write-Host ""
 # Install Claude Code
 Write-Log "Installing/updating Claude Code..."
 try {
-    & npm install -g "@anthropic-ai/claude-code"
+    $claudeCodeOutput = & npm install -g "@anthropic-ai/claude-code" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to install Claude Code: $claudeCodeOutput"
+    }
 } catch {
     Write-Warning "Failed to install Claude Code: $_"
 }
@@ -622,7 +718,10 @@ try {
 # Install OpenCode
 Write-Log "Installing/updating OpenCode..."
 try {
-    & npm install -g "opencode-ai@latest"
+    $openCodeOutput = & npm install -g "opencode-ai@latest" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to install OpenCode: $openCodeOutput"
+    }
 } catch {
     Write-Warning "Failed to install OpenCode: $_"
 }

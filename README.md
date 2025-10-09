@@ -9,7 +9,7 @@ Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) pro
 ## Features
 
 - ✅ **One-command installation** - Run once to install everything
-- ✅ **Manual updates** - Re-run the script to update all tools
+- ✅ **Auto-update check** - Script automatically checks for updates on every run
 - ✅ **Smart admin handling** - Only requires admin for Chocolatey installation
 - ✅ **Multi-PowerShell support** - Works with both PowerShell 5.1 and PowerShell 7+
 - ✅ **Azure OpenAI integration** - Configured for Azure Foundry
@@ -31,7 +31,6 @@ Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) pro
 - llm-anthropic
 - llm-cmd
 - llm-cmd-comp
-- llm-tools-quickjs
 - llm-tools-sqlite
 - llm-fragments-site-text
 - llm-fragments-pdf
@@ -104,17 +103,18 @@ Simply re-run the installation script:
 
 ```powershell
 cd llm-windows-setup
-git pull
 .\Install-LlmTools.ps1
 ```
 
-The script will:
-1. Update llm and all plugins
-2. Update custom templates (assistant.yaml)
-3. Update repomix, gitingest, files-to-prompt, Claude Code, and OpenCode
-4. Refresh PowerShell integration files
+The script will automatically:
+1. Check for script updates from the git repository
+2. Pull latest changes and re-execute if updates are found
+3. Update llm and all plugins
+4. Update custom templates (assistant.yaml)
+5. Update repomix, gitingest, files-to-prompt, Claude Code, and OpenCode
+6. Refresh PowerShell integration files
 
-**Note**: Updates do not require Administrator privileges (unless you need to update Chocolatey packages).
+**Note**: Updates do not require Administrator privileges (unless you need to update Chocolatey packages). The git pull happens automatically during Phase 0.
 
 ## Usage
 
@@ -334,13 +334,13 @@ This Windows version differs from the [Linux version](https://github.com/c0ffee0
 - ❌ **Auto-logging** - No automatic session logging
 - ❌ **Context tool** - Terminal history integration not included
 - ❌ **Claude Code Router** - Not included
-- ❌ **Auto-update on profile load** - Updates only when script is manually run
 
 ### Windows-Specific Features
 - ✅ **Chocolatey** - Package manager for Windows
 - ✅ **Smart admin handling** - Only requires admin for Chocolatey installation
 - ✅ **Unified PowerShell integration** - Single file works with PS5 and PS7
 - ✅ **Windows clipboard aliases** - `pbcopy`/`pbpaste` for macOS compatibility
+- ✅ **Auto-update on script run** - Checks git repository and pulls updates automatically (Phase 0)
 
 ## License
 

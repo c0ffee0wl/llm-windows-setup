@@ -34,7 +34,6 @@ param(
 # ============================================================================
 
 $ErrorActionPreference = "Stop"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # ============================================================================
 # Helper Functions
@@ -53,7 +52,7 @@ function Write-ErrorLog {
     Write-Host $Message
 }
 
-function Write-Warning {
+function Write-WarningLogLog {
     param([string]$Message)
     Write-Host "[WARNING] " -ForegroundColor Yellow -NoNewline
     Write-Host $Message
@@ -67,7 +66,7 @@ function Test-Administrator {
 
 function Test-CommandExists {
     param([string]$Command)
-    $null -ne (Get-Command $Command -ErrorAction SilentlyContinue)
+    [bool](Get-Command $Command -ErrorAction SilentlyContinue)
 }
 
 function Test-PythonAvailable {
@@ -80,19 +79,23 @@ function Test-PythonAvailable {
         is actually installed and working by checking version output.
     #>
     try {
-        # Try to get Python version
-        $pythonVersionOutput = & python --version 2>&1
-
-        # Check if output contains "Python" (indicates real Python installation)
-        # and that exit code is 0
-        if ($LASTEXITCODE -eq 0 -and $pythonVersionOutput -match "Python \d+\.\d+") {
-            return $true
-        }
-
-        return $false
+        $version = python --version 2>&1
+        return ($version -match "Python \d+\.\d+")
     } catch {
         return $false
     }
+}
+
+function Refresh-EnvironmentPath {
+    <#
+    .SYNOPSIS
+        Refreshes the PATH environment variable from Machine and User scopes
+    .DESCRIPTION
+        Combines Machine and User PATH variables to update the current session's PATH.
+        Useful after installing new tools via Chocolatey or other installers.
+    #>
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
+                [System.Environment]::GetEnvironmentVariable("Path","User")
 }
 
 # ============================================================================
@@ -107,16 +110,16 @@ Write-Log "Checking for script updates..."
 
 # Check if we're in a git repository
 try {
-    $gitDir = & git -C $ScriptDir rev-parse --git-dir 2>&1
+    $gitDir = & git -C $PSScriptRoot rev-parse --git-dir 2>&1
     if ($LASTEXITCODE -eq 0) {
         Write-Log "Git repository detected, checking for updates..."
 
         # Fetch latest changes
-        & git -C $ScriptDir fetch origin 2>$null
+        & git -C $PSScriptRoot fetch origin 2>$null
 
         # Get local and remote commit hashes
-        $localCommit = & git -C $ScriptDir rev-parse HEAD
-        $remoteCommit = & git -C $ScriptDir rev-parse '@{u}' 2>$null
+        $localCommit = & git -C $PSScriptRoot rev-parse HEAD
+        $remoteCommit = & git -C $PSScriptRoot rev-parse '@{u}' 2>$null
 
         if ($LASTEXITCODE -ne 0) {
             # No upstream configured, skip update check
@@ -125,7 +128,7 @@ try {
 
         if ($localCommit -ne $remoteCommit) {
             Write-Log "Updates found! Pulling latest changes..."
-            & git -C $ScriptDir pull
+            & git -C $PSScriptRoot pull
 
             if ($LASTEXITCODE -eq 0) {
                 Write-Log "Re-executing updated script..."
@@ -133,16 +136,16 @@ try {
                 & $MyInvocation.MyCommand.Path @PSBoundParameters
                 exit $LASTEXITCODE
             } else {
-                Write-Warning "Failed to pull updates, continuing with current version"
+                Write-WarningLog "Failed to pull updates, continuing with current version"
             }
         } else {
             Write-Log "Script is up to date"
         }
     } else {
-        Write-Warning "Not running from a git repository. Self-update disabled."
+        Write-WarningLog "Not running from a git repository. Self-update disabled."
     }
 } catch {
-    Write-Warning "Could not check for updates: $_"
+    Write-WarningLog "Could not check for updates: $_"
 }
 
 Write-Host ""
@@ -178,7 +181,7 @@ if (-not $chocoInstalled) {
         Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 
         # Refresh environment variables
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        Refresh-EnvironmentPath
 
         Write-Log "Chocolatey installed successfully"
     } catch {
@@ -191,7 +194,7 @@ if (-not $chocoInstalled) {
 
 # From here on, we don't need admin rights for most operations
 if (Test-Administrator) {
-    Write-Warning "Running as Administrator. Installations will be system-wide where possible."
+    Write-WarningLog "Running as Administrator. Installations will be system-wide where possible."
 } else {
     Write-Log "Running as regular user. Installations will be user-scoped where possible."
 }
@@ -205,9 +208,6 @@ Write-Host ""
 Write-Log "Installing prerequisites via Chocolatey..."
 Write-Host ""
 
-# Determine if we need to use sudo (if running as non-admin after choco install)
-$chocoCmd = if (Test-Administrator) { "choco" } else { "choco" }
-
 # Install Git
 if (-not (Test-CommandExists "git")) {
     Write-Log "Installing Git..."
@@ -215,7 +215,7 @@ if (-not (Test-CommandExists "git")) {
         if (Test-Administrator) {
             & choco install git -y
         } else {
-            Write-Warning "Git installation may require Administrator privileges."
+            Write-WarningLog "Git installation may require Administrator privileges."
             Write-Host "Please install Git manually from: https://git-scm.com/download/win"
             Write-Host "Or run this script as Administrator."
             $continue = Read-Host "Continue without Git? (y/N)"
@@ -224,7 +224,7 @@ if (-not (Test-CommandExists "git")) {
             }
         }
     } catch {
-        Write-Warning "Git installation skipped: $_"
+        Write-WarningLog "Git installation skipped: $_"
     }
 } else {
     Write-Log "Git is already installed"
@@ -237,7 +237,7 @@ if (-not (Test-PythonAvailable)) {
         if (Test-Administrator) {
             & choco install python313 -y
         } else {
-            Write-Warning "Python 3.13 installation requires Administrator privileges."
+            Write-WarningLog "Python 3.13 installation requires Administrator privileges."
             Write-Host "Please install Python manually from: https://www.python.org/downloads/"
             Write-Host "Or run this script as Administrator."
             exit 1
@@ -248,7 +248,7 @@ if (-not (Test-PythonAvailable)) {
     }
 
     # Refresh PATH
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+    Refresh-EnvironmentPath
 } else {
     $pythonVersion = & python --version 2>&1
     Write-Log "Python is already installed ($pythonVersion)"
@@ -261,7 +261,7 @@ if (-not (Test-CommandExists "node")) {
         if (Test-Administrator) {
             & choco install nodejs-lts --version-all -y
         } else {
-            Write-Warning "Node.js installation requires Administrator privileges."
+            Write-WarningLog "Node.js installation requires Administrator privileges."
             Write-Host "Please install Node.js manually from: https://nodejs.org/"
             Write-Host "Or run this script as Administrator."
             exit 1
@@ -272,7 +272,7 @@ if (-not (Test-CommandExists "node")) {
     }
 
     # Refresh PATH
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+    Refresh-EnvironmentPath
 } else {
     $nodeVersion = & node --version
     Write-Log "Node.js is already installed ($nodeVersion)"
@@ -285,17 +285,17 @@ if (-not (Test-CommandExists "jq")) {
         if (Test-Administrator) {
             & choco install jq -y
         } else {
-            Write-Warning "jq installation skipped (requires Administrator privileges)"
+            Write-WarningLog "jq installation skipped (requires Administrator privileges)"
         }
     } catch {
-        Write-Warning "jq installation skipped: $_"
+        Write-WarningLog "jq installation skipped: $_"
     }
 } else {
     Write-Log "jq is already installed"
 }
 
 # Refresh PATH to pick up newly installed tools
-$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+Refresh-EnvironmentPath
 
 Write-Host ""
 
@@ -311,7 +311,7 @@ Write-Log "Upgrading pip..."
 try {
     & python -m pip install --upgrade pip --user --quiet
 } catch {
-    Write-Warning "Failed to upgrade pip: $_"
+    Write-WarningLog "Failed to upgrade pip: $_"
 }
 
 # Install pipx
@@ -323,10 +323,10 @@ try {
     & python -m pipx ensurepath --force
 
     # Refresh PATH in current session to include Python Scripts directory
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+    Refresh-EnvironmentPath
 
     # Also ensure .local\bin is in current session PATH
-    $pipxBinPath = "$env:USERPROFILE\.local\bin"
+    $pipxBinPath = Join-Path $env:USERPROFILE ".local\bin"
     if ($env:Path -notlike "*$pipxBinPath*") {
         $env:Path = "$pipxBinPath;$env:Path"
     }
@@ -349,7 +349,7 @@ try {
 }
 
 # Refresh PATH
-$pipxBinPath = "$env:USERPROFILE\.local\bin"
+$pipxBinPath = Join-Path $env:USERPROFILE ".local\bin"
 if ($env:Path -notlike "*$pipxBinPath*") {
     $env:Path = "$pipxBinPath;$env:Path"
 }
@@ -363,29 +363,28 @@ Write-Host ""
 Write-Log "Installing/updating llm..."
 Write-Host ""
 
-$ErrorActionPreference = "Continue"
+try {
+    # Check if llm is already installed
+    $llmInstalled = & uv tool list 2>&1 | Select-String "llm"
 
-# Check if llm is already installed
-$llmInstalled = & uv tool list 2>&1 | Select-String "llm"
+    if ($llmInstalled) {
+        Write-Log "llm is already installed, upgrading..."
+        & uv tool upgrade llm
+    } else {
+        Write-Log "Installing llm..."
+        & uv tool install llm
+    }
 
-if ($llmInstalled) {
-    Write-Log "llm is already installed, upgrading..."
-    & uv tool upgrade llm
-} else {
-    Write-Log "Installing llm..."
-    & uv tool install llm
-}
-
-if ($LASTEXITCODE -ne 0) {
-    $ErrorActionPreference = "Stop"
-    Write-ErrorLog "Failed to install/upgrade llm"
+    if ($LASTEXITCODE -ne 0) {
+        throw "uv tool command failed with exit code $LASTEXITCODE"
+    }
+} catch {
+    Write-ErrorLog "Failed to install/upgrade llm: $_"
     exit 1
 }
 
-$ErrorActionPreference = "Stop"
-
 # Ensure llm is in PATH
-$uvToolsPath = "$env:USERPROFILE\.local\bin"
+$uvToolsPath = Join-Path $env:USERPROFILE ".local\bin"
 if ($env:Path -notlike "*$uvToolsPath*") {
     $env:Path = "$uvToolsPath;$env:Path"
 }
@@ -397,8 +396,8 @@ Write-Host ""
 # ============================================================================
 
 # Detect if this is first run
-$llmConfigDir = "$env:APPDATA\io.datasette.llm"
-$extraModelsFile = "$llmConfigDir\extra-openai-models.yaml"
+$llmConfigDir = Join-Path $env:APPDATA "io.datasette.llm"
+$extraModelsFile = Join-Path $llmConfigDir "extra-openai-models.yaml"
 $isFirstRun = -not (Test-Path $extraModelsFile)
 
 $azureConfigured = $false
@@ -432,7 +431,7 @@ if ($isFirstRun) {
         Write-Log "Using existing API base: $azureApiBase"
     } else {
         $azureApiBase = "https://REPLACE-ME.openai.azure.com/openai/v1/"
-        Write-Warning "Could not read existing API base, using placeholder"
+        Write-WarningLog "Could not read existing API base, using placeholder"
     }
 
     $azureConfigured = $true
@@ -490,7 +489,7 @@ if ($azureConfigured) {
     Set-Content -Path $extraModelsFile -Value $yamlContent -Encoding UTF8
 
     # Set default model if not already set
-    $defaultModelFile = "$llmConfigDir\default_model.txt"
+    $defaultModelFile = Join-Path $llmConfigDir "default_model.txt"
     if (-not (Test-Path $defaultModelFile)) {
         Write-Log "Setting default model to azure/gpt-5-mini..."
         & llm models default azure/gpt-5-mini
@@ -536,7 +535,7 @@ foreach ($plugin in $plugins) {
             & llm install $plugin 2>&1
         }
     } catch {
-        Write-Warning "Failed to install $plugin : $_"
+        Write-WarningLog "Failed to install $plugin : $_"
     }
 }
 
@@ -546,18 +545,18 @@ foreach ($plugin in $gitPlugins) {
     try {
         # Verify git is available before attempting
         if (-not (Test-CommandExists "git")) {
-            Write-Warning "Git is not available. Skipping $plugin"
+            Write-WarningLog "Git is not available. Skipping $plugin"
             continue
         }
 
         $installResult = & llm install $plugin --upgrade 2>&1
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to install $plugin"
-            Write-Warning "This is optional and can be installed manually later with: llm install $plugin"
+            Write-WarningLog "Failed to install $plugin"
+            Write-WarningLog "This is optional and can be installed manually later with: llm install $plugin"
         }
     } catch {
-        Write-Warning "Failed to install $plugin : $_"
-        Write-Warning "This is optional and can be installed manually later"
+        Write-WarningLog "Failed to install $plugin : $_"
+        Write-WarningLog "This is optional and can be installed manually later"
     }
 }
 
@@ -577,7 +576,7 @@ $templatesDir = & llm logs path | Split-Path | Join-Path -ChildPath "templates"
 New-Item -ItemType Directory -Path $templatesDir -Force | Out-Null
 
 # Copy assistant.yaml template from repository
-$sourceTemplate = Join-Path $ScriptDir "llm-template\assistant.yaml"
+$sourceTemplate = Join-Path $PSScriptRoot "llm-template\assistant.yaml"
 $destTemplate = Join-Path $templatesDir "assistant.yaml"
 
 if (Test-Path $sourceTemplate) {
@@ -607,7 +606,7 @@ if (Test-Path $sourceTemplate) {
         Write-Log "Template installed to $destTemplate"
     }
 } else {
-    Write-Warning "Template not found at $sourceTemplate"
+    Write-WarningLog "Template not found at $sourceTemplate"
 }
 
 Write-Host ""
@@ -629,7 +628,7 @@ if (-not (Test-CommandExists "npm")) {
 # Configure npm for user-level global installs (if not admin)
 if (-not (Test-Administrator)) {
     Write-Log "Configuring npm for user-level global installs..."
-    $npmGlobalPrefix = "$env:USERPROFILE\.npm-global"
+    $npmGlobalPrefix = Join-Path $env:USERPROFILE ".npm-global"
 
     try {
         & npm config set prefix $npmGlobalPrefix
@@ -641,59 +640,59 @@ if (-not (Test-Administrator)) {
 
         Write-Log "npm configured to use: $npmGlobalPrefix"
     } catch {
-        Write-Warning "Failed to configure npm prefix: $_"
+        Write-WarningLog "Failed to configure npm prefix: $_"
     }
 }
 
 # Refresh PATH to ensure npm and node are accessible
-$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+Refresh-EnvironmentPath
 
 # Install repomix
 Write-Log "Installing/updating repomix..."
 try {
     $repomixOutput = & npm install -g repomix 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to install repomix: $repomixOutput"
+        Write-WarningLog "Failed to install repomix: $repomixOutput"
     }
 } catch {
-    Write-Warning "Failed to install repomix: $_"
+    Write-WarningLog "Failed to install repomix: $_"
 }
 
 # Install gitingest
 Write-Log "Installing/updating gitingest..."
 
-$ErrorActionPreference = "Continue"
+try {
+    $gitingestInstalled = & uv tool list 2>&1 | Select-String "gitingest"
+    if ($gitingestInstalled) {
+        & uv tool upgrade gitingest
+    } else {
+        & uv tool install gitingest
+    }
 
-$gitingestInstalled = & uv tool list 2>&1 | Select-String "gitingest"
-if ($gitingestInstalled) {
-    & uv tool upgrade gitingest
-} else {
-    & uv tool install gitingest
+    if ($LASTEXITCODE -ne 0) {
+        throw "uv tool command failed with exit code $LASTEXITCODE"
+    }
+} catch {
+    Write-WarningLog "Failed to install gitingest: $_"
 }
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Failed to install gitingest"
-}
-
-$ErrorActionPreference = "Stop"
 
 # Install files-to-prompt
 Write-Log "Installing/updating files-to-prompt..."
 
-$ErrorActionPreference = "Continue"
+try {
+    $filesPromptInstalled = & uv tool list 2>&1 | Select-String "files-to-prompt"
+    if ($filesPromptInstalled) {
+        & uv tool upgrade files-to-prompt
+    } else {
+        & uv tool install "git+https://github.com/danmackinlay/files-to-prompt"
+    }
 
-$filesPromptInstalled = & uv tool list 2>&1 | Select-String "files-to-prompt"
-if ($filesPromptInstalled) {
-    & uv tool upgrade files-to-prompt
-} else {
-    & uv tool install "git+https://github.com/danmackinlay/files-to-prompt"
+    if ($LASTEXITCODE -ne 0) {
+        throw "uv tool command failed with exit code $LASTEXITCODE"
+    }
+} catch {
+    Write-WarningLog "Failed to install files-to-prompt: $_"
 }
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Failed to install files-to-prompt"
-}
-
-$ErrorActionPreference = "Stop"
 
 Write-Host ""
 
@@ -709,10 +708,10 @@ Write-Log "Installing/updating Claude Code..."
 try {
     $claudeCodeOutput = & npm install -g "@anthropic-ai/claude-code" 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to install Claude Code: $claudeCodeOutput"
+        Write-WarningLog "Failed to install Claude Code: $claudeCodeOutput"
     }
 } catch {
-    Write-Warning "Failed to install Claude Code: $_"
+    Write-WarningLog "Failed to install Claude Code: $_"
 }
 
 # Install OpenCode
@@ -720,10 +719,10 @@ Write-Log "Installing/updating OpenCode..."
 try {
     $openCodeOutput = & npm install -g "opencode-ai@latest" 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to install OpenCode: $openCodeOutput"
+        Write-WarningLog "Failed to install OpenCode: $openCodeOutput"
     }
 } catch {
-    Write-Warning "Failed to install OpenCode: $_"
+    Write-WarningLog "Failed to install OpenCode: $_"
 }
 
 Write-Host ""
@@ -736,13 +735,13 @@ Write-Log "Setting up PowerShell profile integration..."
 Write-Host ""
 
 # Define integration source
-$integrationFile = Join-Path $ScriptDir "integration\llm-integration.ps1"
+$integrationFile = Join-Path $PSScriptRoot "integration\llm-integration.ps1"
 
 # PowerShell 5 profile path
-$ps5ProfilePath = "$env:USERPROFILE\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
+$ps5ProfilePath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
 
 # PowerShell 7 profile path
-$ps7ProfilePath = "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+$ps7ProfilePath = Join-Path $env:USERPROFILE "Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
 
 # Integration snippet to add
 $integrationSnippet = @"

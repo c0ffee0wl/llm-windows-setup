@@ -6,41 +6,40 @@
 #
 
 # ============================================================================
+# Helper Functions
+# ============================================================================
+
+function Add-ToPathIfExists {
+    <#
+    .SYNOPSIS
+        Adds a directory to PATH if it exists and isn't already in PATH
+    #>
+    param([string]$Path)
+
+    if ((Test-Path $Path) -and ($env:PATH -notlike "*$Path*")) {
+        $env:PATH = "$Path;$env:PATH"
+    }
+}
+
+# ============================================================================
 # PATH Configuration
 # ============================================================================
 
 # Ensure Python user scripts are in PATH
-$pythonUserScripts = "$env:APPDATA\Python\Python*\Scripts"
+$pythonUserScripts = Join-Path $env:APPDATA "Python\Python*\Scripts"
 if (Test-Path $pythonUserScripts) {
     $pythonScriptsPath = (Get-Item $pythonUserScripts | Select-Object -First 1).FullName
-    if ($env:PATH -notlike "*$pythonScriptsPath*") {
-        $env:PATH = "$pythonScriptsPath;$env:PATH"
-    }
+    Add-ToPathIfExists $pythonScriptsPath
 }
 
 # Ensure user local bin is in PATH
-$userLocalBin = "$env:USERPROFILE\.local\bin"
-if (Test-Path $userLocalBin) {
-    if ($env:PATH -notlike "*$userLocalBin*") {
-        $env:PATH = "$userLocalBin;$env:PATH"
-    }
-}
+Add-ToPathIfExists (Join-Path $env:USERPROFILE ".local\bin")
 
 # Ensure npm global is in PATH
-$npmGlobal = "$env:APPDATA\npm"
-if (Test-Path $npmGlobal) {
-    if ($env:PATH -notlike "*$npmGlobal*") {
-        $env:PATH = "$npmGlobal;$env:PATH"
-    }
-}
+Add-ToPathIfExists (Join-Path $env:APPDATA "npm")
 
 # Alternative npm global location (if configured)
-$npmGlobalAlt = "$env:USERPROFILE\.npm-global"
-if (Test-Path $npmGlobalAlt) {
-    if ($env:PATH -notlike "*$npmGlobalAlt*") {
-        $env:PATH = "$npmGlobalAlt;$env:PATH"
-    }
-}
+Add-ToPathIfExists (Join-Path $env:USERPROFILE ".npm-global")
 
 # ============================================================================
 # Custom llm Wrapper Function

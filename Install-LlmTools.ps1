@@ -157,14 +157,14 @@ if (-not (Test-CommandExists "git")) {
     Write-Log "Git is already installed"
 }
 
-# Install Python 3
+# Install Python 3.13
 if (-not (Test-CommandExists "python")) {
-    Write-Log "Installing Python 3..."
+    Write-Log "Installing Python 3.13..."
     try {
         if (Test-Administrator) {
-            & choco install python3 -y
+            & choco install python313 -y
         } else {
-            Write-Warning "Python installation requires Administrator privileges."
+            Write-Warning "Python 3.13 installation requires Administrator privileges."
             Write-Host "Please install Python manually from: https://www.python.org/downloads/"
             Write-Host "Or run this script as Administrator."
             exit 1

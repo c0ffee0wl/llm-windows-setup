@@ -52,7 +52,7 @@ function Write-ErrorLog {
     Write-Host $Message
 }
 
-function Write-WarningLogLog {
+function Write-WarningLog {
     param([string]$Message)
     Write-Host "[WARNING] " -ForegroundColor Yellow -NoNewline
     Write-Host $Message

@@ -289,21 +289,26 @@ Write-Host ""
 Write-Log "Installing/updating llm..."
 Write-Host ""
 
-try {
-    # Check if llm is already installed
-    $llmInstalled = & uv tool list 2>$null | Select-String "llm"
+$ErrorActionPreference = "Continue"
 
-    if ($llmInstalled) {
-        Write-Log "llm is already installed, upgrading..."
-        & uv tool upgrade llm
-    } else {
-        Write-Log "Installing llm..."
-        & uv tool install llm
-    }
-} catch {
-    Write-ErrorLog "Failed to install llm: $_"
+# Check if llm is already installed
+$llmInstalled = & uv tool list 2>&1 | Select-String "llm"
+
+if ($llmInstalled) {
+    Write-Log "llm is already installed, upgrading..."
+    & uv tool upgrade llm
+} else {
+    Write-Log "Installing llm..."
+    & uv tool install llm
+}
+
+if ($LASTEXITCODE -ne 0) {
+    $ErrorActionPreference = "Stop"
+    Write-ErrorLog "Failed to install/upgrade llm"
     exit 1
 }
+
+$ErrorActionPreference = "Stop"
 
 # Ensure llm is in PATH
 $uvToolsPath = "$env:USERPROFILE\.local\bin"
@@ -537,29 +542,39 @@ try {
 
 # Install gitingest
 Write-Log "Installing/updating gitingest..."
-try {
-    $gitingestInstalled = & uv tool list 2>$null | Select-String "gitingest"
-    if ($gitingestInstalled) {
-        & uv tool upgrade gitingest
-    } else {
-        & uv tool install gitingest
-    }
-} catch {
-    Write-Warning "Failed to install gitingest: $_"
+
+$ErrorActionPreference = "Continue"
+
+$gitingestInstalled = & uv tool list 2>&1 | Select-String "gitingest"
+if ($gitingestInstalled) {
+    & uv tool upgrade gitingest
+} else {
+    & uv tool install gitingest
 }
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Failed to install gitingest"
+}
+
+$ErrorActionPreference = "Stop"
 
 # Install files-to-prompt
 Write-Log "Installing/updating files-to-prompt..."
-try {
-    $filesPromptInstalled = & uv tool list 2>$null | Select-String "files-to-prompt"
-    if ($filesPromptInstalled) {
-        & uv tool upgrade files-to-prompt
-    } else {
-        & uv tool install "git+https://github.com/danmackinlay/files-to-prompt"
-    }
-} catch {
-    Write-Warning "Failed to install files-to-prompt: $_"
+
+$ErrorActionPreference = "Continue"
+
+$filesPromptInstalled = & uv tool list 2>&1 | Select-String "files-to-prompt"
+if ($filesPromptInstalled) {
+    & uv tool upgrade files-to-prompt
+} else {
+    & uv tool install "git+https://github.com/danmackinlay/files-to-prompt"
 }
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Failed to install files-to-prompt"
+}
+
+$ErrorActionPreference = "Stop"
 
 Write-Host ""
 

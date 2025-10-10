@@ -557,8 +557,6 @@ $plugins = @(
     "llm-gemini",
     "llm-openrouter",
     "llm-anthropic",
-    "llm-cmd",
-    "llm-cmd-comp",
     "llm-tools-sqlite",
     "llm-fragments-site-text",
     "llm-fragments-pdf",
@@ -568,6 +566,8 @@ $plugins = @(
 
 # Git-based plugins (may require git to be properly configured)
 $gitPlugins = @(
+    "git+https://github.com/c0ffee0wl/llm-cmd",
+    "git+https://github.com/c0ffee0wl/llm-cmd-comp",
     "git+https://github.com/damonmcminn/llm-templates-fabric"
 )
 
@@ -597,6 +597,7 @@ foreach ($plugin in $gitPlugins) {
 
         & llm install $plugin --upgrade
         if ($LASTEXITCODE -ne 0) {
+            & llm install $plugin
             Write-WarningLog "Failed to install $plugin"
             Write-WarningLog "This is optional and can be installed manually later with: llm install $plugin"
         }

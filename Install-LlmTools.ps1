@@ -220,7 +220,7 @@ if (Test-Administrator) {
 Write-Host ""
 
 # ============================================================================
-# Phase 1: Install Prerequisites via Chocolatey
+# Phase 2: Install Prerequisites via Chocolatey
 # ============================================================================
 
 Write-Log "Installing prerequisites via Chocolatey..."
@@ -318,7 +318,7 @@ Refresh-EnvironmentPath
 Write-Host ""
 
 # ============================================================================
-# Phase 2: Install Python Tools (User Scope)
+# Phase 3: Install Python Tools (User Scope)
 # ============================================================================
 
 Write-Log "Installing Python tools..."
@@ -375,7 +375,7 @@ if ($env:Path -notlike "*$pipxBinPath*") {
 Write-Host ""
 
 # ============================================================================
-# Phase 3: Install LLM Core
+# Phase 4: Install LLM Core
 # ============================================================================
 
 Write-Log "Installing/updating llm..."
@@ -411,7 +411,7 @@ if ($env:Path -notlike "*$uvToolsPath*") {
 Write-Host ""
 
 # ============================================================================
-# Phase 4: Configure Azure OpenAI (Optional)
+# Phase 5: Configure Azure OpenAI (Optional)
 # ============================================================================
 
 # Detect if this is first run
@@ -520,7 +520,7 @@ if ($azureConfigured) {
 Write-Host ""
 
 # ============================================================================
-# Phase 5: Install LLM Plugins
+# Phase 6: Install LLM Plugins
 # ============================================================================
 
 Write-Log "Installing/updating llm plugins..."
@@ -582,7 +582,7 @@ foreach ($plugin in $gitPlugins) {
 Write-Host ""
 
 # ============================================================================
-# Phase 6: Install LLM Templates
+# Phase 7: Install LLM Templates
 # ============================================================================
 
 Write-Log "Installing/updating llm templates..."
@@ -631,7 +631,71 @@ if (Test-Path $sourceTemplate) {
 Write-Host ""
 
 # ============================================================================
-# Phase 7: Install Additional Tools
+# Phase 8: PowerShell Profile Integration
+# ============================================================================
+
+Write-Log "Setting up PowerShell profile integration..."
+Write-Host ""
+
+# Define integration source
+$integrationFile = Join-Path $PSScriptRoot "integration\llm-integration.ps1"
+
+# PowerShell 5 profile path
+$ps5ProfilePath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
+
+# PowerShell 7 profile path
+$ps7ProfilePath = Join-Path $env:USERPROFILE "Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+
+# Integration snippet to add
+$integrationSnippet = @"
+
+# LLM Tools Integration
+if (Test-Path "$integrationFile") {
+    . "$integrationFile"
+}
+"@
+
+# Function to add integration to profile
+function Add-IntegrationToProfile {
+    param(
+        [string]$ProfilePath,
+        [string]$ProfileName
+    )
+
+    # Create profile directory if it doesn't exist
+    $profileDir = Split-Path $ProfilePath
+    if (-not (Test-Path $profileDir)) {
+        New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
+    }
+
+    # Create profile file if it doesn't exist
+    if (-not (Test-Path $ProfilePath)) {
+        New-Item -ItemType File -Path $ProfilePath -Force | Out-Null
+    }
+
+    # Check if integration is already present
+    $profileContent = Get-Content $ProfilePath -Raw -ErrorAction SilentlyContinue
+
+    if ([string]::IsNullOrWhiteSpace($profileContent) -or ($profileContent -notmatch "llm-integration\.ps1")) {
+        Write-Log "Adding llm integration to $ProfileName profile..."
+        Add-Content -Path $ProfilePath -Value $integrationSnippet
+    } else {
+        Write-Log "llm integration already present in $ProfileName profile"
+    }
+}
+
+# Add to PowerShell 5 profile
+Add-IntegrationToProfile -ProfilePath $ps5ProfilePath -ProfileName "PowerShell 5"
+
+# Add to PowerShell 7 profile (if PowerShell 7 is installed)
+if (Test-CommandExists "pwsh") {
+    Add-IntegrationToProfile -ProfilePath $ps7ProfilePath -ProfileName "PowerShell 7"
+}
+
+Write-Host ""
+
+# ============================================================================
+# Phase 9: Install Additional Tools
 # ============================================================================
 
 Write-Log "Installing/updating additional tools..."
@@ -719,10 +783,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host ""
 
-# ============================================================================
-# Phase 8: Install Claude Code & OpenCode
-# ============================================================================
-
+# Install Claude Code & OpenCode
 Write-Log "Installing/updating Claude Code and OpenCode..."
 Write-Host ""
 
@@ -746,70 +807,6 @@ try {
     }
 } catch {
     Write-WarningLog "Failed to install OpenCode: $_"
-}
-
-Write-Host ""
-
-# ============================================================================
-# Phase 9: PowerShell Profile Integration
-# ============================================================================
-
-Write-Log "Setting up PowerShell profile integration..."
-Write-Host ""
-
-# Define integration source
-$integrationFile = Join-Path $PSScriptRoot "integration\llm-integration.ps1"
-
-# PowerShell 5 profile path
-$ps5ProfilePath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
-
-# PowerShell 7 profile path
-$ps7ProfilePath = Join-Path $env:USERPROFILE "Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
-
-# Integration snippet to add
-$integrationSnippet = @"
-
-# LLM Tools Integration
-if (Test-Path "$integrationFile") {
-    . "$integrationFile"
-}
-"@
-
-# Function to add integration to profile
-function Add-IntegrationToProfile {
-    param(
-        [string]$ProfilePath,
-        [string]$ProfileName
-    )
-
-    # Create profile directory if it doesn't exist
-    $profileDir = Split-Path $ProfilePath
-    if (-not (Test-Path $profileDir)) {
-        New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
-    }
-
-    # Create profile file if it doesn't exist
-    if (-not (Test-Path $ProfilePath)) {
-        New-Item -ItemType File -Path $ProfilePath -Force | Out-Null
-    }
-
-    # Check if integration is already present
-    $profileContent = Get-Content $ProfilePath -Raw -ErrorAction SilentlyContinue
-
-    if ([string]::IsNullOrWhiteSpace($profileContent) -or ($profileContent -notmatch "llm-integration\.ps1")) {
-        Write-Log "Adding llm integration to $ProfileName profile..."
-        Add-Content -Path $ProfilePath -Value $integrationSnippet
-    } else {
-        Write-Log "llm integration already present in $ProfileName profile"
-    }
-}
-
-# Add to PowerShell 5 profile
-Add-IntegrationToProfile -ProfilePath $ps5ProfilePath -ProfileName "PowerShell 5"
-
-# Add to PowerShell 7 profile (if PowerShell 7 is installed)
-if (Test-CommandExists "pwsh") {
-    Add-IntegrationToProfile -ProfilePath $ps7ProfilePath -ProfileName "PowerShell 7"
 }
 
 Write-Host ""

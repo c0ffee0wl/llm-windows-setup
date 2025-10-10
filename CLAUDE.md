@@ -38,8 +38,8 @@ The script executes in 10 sequential phases:
 5. **Azure OpenAI Config** - Interactive setup (optional, first-run detection)
 6. **LLM Plugins** - Install plugins including llm-cmd, llm-anthropic, llm-jq, llm-tools-sqlite
 7. **LLM Templates** - Copy assistant.yaml with smart update detection
-8. **Additional Tools** - Install repomix, gitingest, files-to-prompt, Claude Code, OpenCode
-9. **PowerShell Integration** - Add sourcing to PS5 and PS7 profiles
+8. **PowerShell Integration** - Add sourcing to PS5 and PS7 profiles
+9. **Additional Tools** - Install repomix, gitingest, files-to-prompt, Claude Code, OpenCode
 
 ### PowerShell Integration Architecture
 
@@ -165,6 +165,7 @@ When editing `integration/llm-integration.ps1`:
 - **Path separators**: Use `\` for Windows paths in documentation
 - **Line endings**: Scripts should use CRLF for Windows compatibility
 - **Admin elevation**: Chocolatey packages require admin, everything else is user-scoped
+- Remember to not start npm with & because this is a Batch / cmd file that causes an error message when running on windows.
 
 ## File Locations
 
@@ -218,3 +219,4 @@ llm keys get azure
 # Check PSReadLine module
 Get-Module PSReadLine
 ```
+

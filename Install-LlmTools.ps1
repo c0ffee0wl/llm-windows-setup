@@ -10,6 +10,9 @@
 .PARAMETER Force
     Force reinstallation of all components
 
+.PARAMETER Azure
+    Force Azure OpenAI configuration (even if previously configured or skipped)
+
 .EXAMPLE
     .\Install-LlmTools.ps1
     Run the installation script
@@ -17,6 +20,10 @@
 .EXAMPLE
     .\Install-LlmTools.ps1 -Force
     Force reinstall all components
+
+.EXAMPLE
+    .\Install-LlmTools.ps1 -Azure
+    Run installation and force Azure OpenAI configuration
 
 .NOTES
     Author: Based on llm-linux-setup by c0ffee0wl
@@ -26,7 +33,8 @@
 
 [CmdletBinding()]
 param(
-    [switch]$Force
+    [switch]$Force,
+    [switch]$Azure
 )
 
 # ============================================================================
@@ -414,16 +422,50 @@ Write-Host ""
 # Phase 5: Configure Azure OpenAI (Optional)
 # ============================================================================
 
-# Detect if this is first run
+# Detect if this is first run (no config file exists yet)
 $llmConfigDir = Join-Path $env:APPDATA "io.datasette.llm"
 $extraModelsFile = Join-Path $llmConfigDir "extra-openai-models.yaml"
 $isFirstRun = -not (Test-Path $extraModelsFile)
 
 $azureConfigured = $false
 $azureApiBase = ""
+$shouldPromptForConfig = $false
 
-if ($isFirstRun) {
-    Write-Log "Azure OpenAI Configuration"
+# Check if we should prompt for Azure configuration
+if ($Azure) {
+    # -Azure parameter forces configuration
+    $shouldPromptForConfig = $true
+    Write-Log "Azure OpenAI Configuration (forced by -Azure parameter)"
+} elseif ($isFirstRun) {
+    # First run - ask user if they want to configure
+    $shouldPromptForConfig = $true
+    Write-Log "Azure OpenAI Configuration (first-time setup)"
+} elseif (Test-Path $extraModelsFile) {
+    # Configuration file exists - check if it was previously skipped or configured
+    $yamlContent = Get-Content $extraModelsFile -Raw
+
+    if ($yamlContent -match '# Configuration skipped by user') {
+        # User previously skipped - don't ask again unless -Azure is used
+        Write-Log "Azure OpenAI configuration was previously skipped"
+    } else {
+        # Previously configured - preserve it
+        Write-Log "Azure OpenAI was previously configured, preserving existing configuration"
+
+        # Extract existing API base
+        if ($yamlContent -match 'api_base:\s*(.+)') {
+            $azureApiBase = $matches[1].Trim()
+            Write-Log "Using existing API base: $azureApiBase"
+        } else {
+            $azureApiBase = "https://REPLACE-ME.openai.azure.com/openai/v1/"
+            Write-WarningLog "Could not read existing API base, using placeholder"
+        }
+
+        $azureConfigured = $true
+    }
+}
+
+# Prompt for Azure configuration if needed
+if ($shouldPromptForConfig) {
     Write-Host ""
     $configAzure = Read-Host "Do you want to configure Azure OpenAI? (Y/n)"
 
@@ -439,23 +481,16 @@ if ($isFirstRun) {
         $azureConfigured = $true
     } else {
         Write-Log "Skipping Azure OpenAI configuration"
+        # Create marker file to remember user declined
+        $skipMarkerContent = @"
+# Configuration skipped by user
+# To configure Azure OpenAI, run: .\Install-LlmTools.ps1 -Azure
+# Or manually edit this file following the format at:
+# https://llm.datasette.io/en/stable/openai-models.html
+"@
+        New-Item -ItemType Directory -Path $llmConfigDir -Force | Out-Null
+        Set-Content -Path $extraModelsFile -Value $skipMarkerContent -Encoding Ascii
     }
-} elseif (Test-Path $extraModelsFile) {
-    Write-Log "Azure OpenAI was previously configured, preserving existing configuration"
-
-    # Extract existing API base
-    $yamlContent = Get-Content $extraModelsFile -Raw
-    if ($yamlContent -match 'api_base:\s*(.+)') {
-        $azureApiBase = $matches[1].Trim()
-        Write-Log "Using existing API base: $azureApiBase"
-    } else {
-        $azureApiBase = "https://REPLACE-ME.openai.azure.com/openai/v1/"
-        Write-WarningLog "Could not read existing API base, using placeholder"
-    }
-
-    $azureConfigured = $true
-} else {
-    Write-Log "Azure OpenAI not configured (skipped during initial setup)"
 }
 
 # Create extra-openai-models.yaml if Azure was configured

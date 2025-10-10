@@ -7,19 +7,12 @@
     Installs Simon Willison's llm CLI tool and related AI/LLM command-line utilities
     for Windows environments. Supports both PowerShell 5.1 and PowerShell 7+.
 
-.PARAMETER Force
-    Force reinstallation of all components
-
 .PARAMETER Azure
     Force Azure OpenAI configuration (even if previously configured or skipped)
 
 .EXAMPLE
     .\Install-LlmTools.ps1
     Run the installation script
-
-.EXAMPLE
-    .\Install-LlmTools.ps1 -Force
-    Force reinstall all components
 
 .EXAMPLE
     .\Install-LlmTools.ps1 -Azure
@@ -33,7 +26,6 @@
 
 [CmdletBinding()]
 param(
-    [switch]$Force,
     [switch]$Azure
 )
 
@@ -876,4 +868,7 @@ Write-Log "     Configuration: https://opencode.ai/docs/providers"
 Write-Host ""
 Write-Log "To update all tools in the future, simply re-run this script:"
 Write-Log "  .\Install-LlmTools.ps1"
+Write-Host ""
+Write-Log "To reconfigure Azure OpenAI (e.g., update endpoint or if initially skipped):"
+Write-Log "  .\Install-LlmTools.ps1 -Azure"
 Write-Host ""

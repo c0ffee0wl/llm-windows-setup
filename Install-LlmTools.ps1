@@ -568,7 +568,7 @@ $plugins = @(
 $gitPlugins = @(
     "git+https://github.com/c0ffee0wl/llm-cmd",
     "git+https://github.com/c0ffee0wl/llm-cmd-comp",
-    "git+https://github.com/damonmcminn/llm-templates-fabric"
+    "git+https://github.com/c0ffee0wl/llm-templates-fabric"
 )
 
 # Install regular plugins
@@ -801,7 +801,7 @@ if ($filesPromptInstalled) {
         Write-WarningLog "Failed to upgrade files-to-prompt"
     }
 } else {
-    & uv tool install "git+https://github.com/danmackinlay/files-to-prompt"
+    & uv tool install "git+https://github.com/c0ffee0wl/files-to-prompt"
     if ($LASTEXITCODE -ne 0) {
         Write-WarningLog "Failed to install files-to-prompt"
     }

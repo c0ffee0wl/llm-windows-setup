@@ -1,0 +1,12 @@
+# PowerShell scripts must use Windows (CRLF) line endings
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
+
+# Markdown and YAML use LF
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Ensure all text files are normalized
+* text=auto

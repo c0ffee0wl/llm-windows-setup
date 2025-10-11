@@ -98,6 +98,145 @@ function Refresh-EnvironmentPath {
                 [System.Environment]::GetEnvironmentVariable("Path","User")
 }
 
+function Add-ToPath {
+    <#
+    .SYNOPSIS
+        Adds a directory to the current session's PATH if not already present
+    .PARAMETER Path
+        The directory path to add to PATH
+    #>
+    param([string]$Path)
+
+    if ($env:Path -notlike "*$Path*") {
+        $env:Path = "$Path;$env:Path"
+    }
+}
+
+function Install-ChocoPackage {
+    <#
+    .SYNOPSIS
+        Installs a package via Chocolatey with admin checks
+    .PARAMETER PackageName
+        The Chocolatey package name to install
+    .PARAMETER CommandName
+        The command name to check for (defaults to PackageName)
+    .PARAMETER ManualUrl
+        URL for manual installation instructions
+    .PARAMETER AllowSkip
+        If true, allows user to skip installation
+    .PARAMETER SkipCheck
+        If true, don't check if command already installed
+	#>
+    param(
+        [string]$PackageName,
+        [string]$CommandName = $PackageName,
+        [string]$ManualUrl = "",
+        [bool]$AllowSkip = $false,
+		[bool]$SkipCheck = $false
+    )
+
+    if ((-not $SkipCheck) -and (Test-CommandExists $CommandName)) {
+        Write-Log "$CommandName is already installed"
+		return $true
+    }
+
+    Write-Log "Installing $PackageName..."
+
+    if (Test-Administrator) {
+        try {
+            & choco install $PackageName -y
+            Refresh-EnvironmentPath
+            return $true
+        } catch {
+            Write-WarningLog "Failed to install $PackageName : $_"
+            return $false
+        }
+    } else {
+        Write-WarningLog "$PackageName installation requires Administrator privileges."
+        if ($ManualUrl) {
+            Write-Host "Please install $PackageName manually from: $ManualUrl"
+        }
+        Write-Host "Or run this script as Administrator."
+
+        if ($AllowSkip) {
+            $continue = Read-Host "Continue without $PackageName? (y/N)"
+            if ($continue -eq 'y' -or $continue -eq 'Y') {
+                return $false
+            }
+        }
+        exit 1
+    }
+}
+
+function Install-UvTool {
+    <#
+    .SYNOPSIS
+        Installs or upgrades a tool via uv
+    .PARAMETER ToolName
+        The tool name or git URL to install
+    .PARAMETER IsGitPackage
+        If true, verifies git is available before installing
+    #>
+    param(
+        [string]$ToolName,
+        [bool]$IsGitPackage = $false
+    )
+
+    if ($IsGitPackage -and -not (Test-CommandExists "git")) {
+        Write-WarningLog "Git is not available. Skipping $ToolName"
+        return $false
+    }
+
+    Write-Log "Installing/updating $ToolName..."
+
+    try {
+        # Check if tool is already installed
+        $toolInstalled = & uv tool list 2>&1 | Select-String ($ToolName -replace 'git\+https://.+/(.+)', '$1')
+
+        if ($toolInstalled) {
+            & uv tool upgrade ($ToolName -replace 'git\+https://.+/(.+)', '$1') 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-WarningLog "Failed to upgrade $ToolName"
+                return $false
+            }
+        } else {
+            & uv tool install $ToolName 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-WarningLog "Failed to install $ToolName"
+                return $false
+            }
+        }
+        return $true
+    } catch {
+        Write-WarningLog "Failed to install/upgrade $ToolName : $_"
+        return $false
+    }
+}
+
+function Install-NpmPackage {
+    <#
+    .SYNOPSIS
+        Installs a package globally via npm
+    .PARAMETER PackageName
+        The npm package name to install
+    #>
+    param([string]$PackageName)
+
+    Write-Log "Installing/updating $PackageName..."
+
+    try {
+        npm install -g $PackageName
+        if ($LASTEXITCODE -ne 0) {
+            Write-WarningLog "Failed to install $PackageName"
+            return $false
+        }
+        return $true
+    } catch {
+        Write-WarningLog "Failed to install $PackageName : $_"
+        return $false
+    }
+}
+
 # ============================================================================
 # Phase 0: Self-Update (Git Pull)
 # ============================================================================
@@ -107,6 +246,9 @@ Write-Log "=========================================="
 Write-Host ""
 
 Write-Log "Checking for script updates..."
+
+# Flag to track if we need to initialize git repository (ZIP download scenario)
+$needsGitInit = $false
 
 # Temporarily disable strict error handling for git operations
 $previousErrorAction = $ErrorActionPreference
@@ -124,43 +266,51 @@ if ($isGitRepo) {
     $fetchSuccess = ($LASTEXITCODE -eq 0)
 
     if ($fetchSuccess) {
-        # Get local and remote commit hashes
-        $localCommit = & git -C $PSScriptRoot rev-parse HEAD 2>&1
+        # Check if we have an upstream branch configured
         $remoteCommit = & git -C $PSScriptRoot rev-parse '@{u}' 2>&1
         $hasUpstream = ($LASTEXITCODE -eq 0)
 
         if (-not $hasUpstream) {
             # No upstream configured, skip update check
             Write-Log "No upstream branch configured, skipping update check"
-            $remoteCommit = $localCommit
-        }
-
-        if ($localCommit -ne $remoteCommit) {
-            Write-Log "Updates found! Pulling latest changes..."
-            $pullOutput = & git -C $PSScriptRoot pull 2>&1
-
-            if ($LASTEXITCODE -eq 0) {
-                Write-Log "Updates applied successfully. Re-executing script..."
-                Write-Host ""
-
-                # Restore error handling before re-execution
-                $ErrorActionPreference = $previousErrorAction
-
-                & $MyInvocation.MyCommand.Path @PSBoundParameters
-                exit $LASTEXITCODE
-            } else {
-                Write-WarningLog "Failed to pull updates: git pull returned exit code $LASTEXITCODE"
-                Write-WarningLog "Continuing with current version"
-            }
         } else {
-            Write-Log "Script is up to date"
+            # Count commits we don't have that remote has (only pull if behind, not ahead or diverged)
+            $behindOutput = & git -C $PSScriptRoot rev-list 'HEAD..@{u}' 2>&1
+            $behind = if ($LASTEXITCODE -eq 0 -and $behindOutput) {
+                ($behindOutput | Measure-Object).Count
+            } else {
+                0
+            }
+
+            if ($behind -gt 0) {
+                Write-Log "Updates found! Pulling latest changes..."
+                $pullOutput = & git -C $PSScriptRoot pull 2>&1
+
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Log "Updates applied successfully. Re-executing script..."
+                    Write-Host ""
+
+                    # Restore error handling before re-execution
+                    $ErrorActionPreference = $previousErrorAction
+
+                    & $MyInvocation.MyCommand.Path @PSBoundParameters
+                    exit $LASTEXITCODE
+                } else {
+                    Write-WarningLog "Failed to pull updates: git pull returned exit code $LASTEXITCODE"
+                    Write-WarningLog "Continuing with current version"
+                }
+            } else {
+                Write-Log "Script is up to date"
+            }
         }
     } else {
         Write-WarningLog "Failed to fetch updates from remote repository"
         Write-WarningLog "Continuing with current version"
     }
 } else {
-    Write-WarningLog "Not running from a git repository. Self-update disabled."
+    Write-WarningLog "Not running from a git repository (downloaded as ZIP file)"
+    Write-Log "Git will be installed and the repository will be initialized for future auto-updates"
+    $needsGitInit = $true
 }
 
 # Restore strict error handling
@@ -227,95 +377,148 @@ Write-Log "Installing prerequisites via Chocolatey..."
 Write-Host ""
 
 # Install Git
-if (-not (Test-CommandExists "git")) {
-    Write-Log "Installing Git..."
-    try {
-        if (Test-Administrator) {
-            & choco install git -y
-        } else {
-            Write-WarningLog "Git installation may require Administrator privileges."
-            Write-Host "Please install Git manually from: https://git-scm.com/download/win"
-            Write-Host "Or run this script as Administrator."
-            $continue = Read-Host "Continue without Git? (y/N)"
-            if ($continue -ne 'y' -and $continue -ne 'Y') {
-                exit 1
-            }
-        }
-    } catch {
-        Write-WarningLog "Git installation skipped: $_"
-    }
-} else {
-    Write-Log "Git is already installed"
-}
+Install-ChocoPackage -PackageName "git" -CommandName "git" -ManualUrl "https://git-scm.com/download/win" -AllowSkip $true
 
-# Install Python 3.13
+# Install Python 3.13 (special handling for Windows Store alias)
 if (-not (Test-PythonAvailable)) {
-    Write-Log "Installing Python 3.13..."
-    try {
-        if (Test-Administrator) {
-            & choco install python313 -y
-        } else {
-            Write-WarningLog "Python 3.13 installation requires Administrator privileges."
-            Write-Host "Please install Python manually from: https://www.python.org/downloads/"
-            Write-Host "Or run this script as Administrator."
-            exit 1
-        }
-    } catch {
-        Write-ErrorLog "Failed to install Python: $_"
-        exit 1
-    }
-
-    # Refresh PATH
-    Refresh-EnvironmentPath
+    Install-ChocoPackage -PackageName "python313" -CommandName "python" -ManualUrl "https://www.python.org/downloads/" -AllowSkip $false -SkipCheck $true
 } else {
     $pythonVersion = & python --version 2>&1
     Write-Log "Python is already installed ($pythonVersion)"
 }
 
-# Install Node.js 22.x
-if (-not (Test-CommandExists "node")) {
-    Write-Log "Installing Node.js 22..."
-    try {
-        if (Test-Administrator) {
-            & choco install nodejs-lts --version-all -y
-        } else {
-            Write-WarningLog "Node.js installation requires Administrator privileges."
-            Write-Host "Please install Node.js manually from: https://nodejs.org/"
-            Write-Host "Or run this script as Administrator."
-            exit 1
-        }
-    } catch {
-        Write-ErrorLog "Failed to install Node.js: $_"
-        exit 1
-    }
+# Install Node.js
+Install-ChocoPackage -PackageName "nodejs-lts" -CommandName "node" -ManualUrl "https://nodejs.org/" -AllowSkip $false
 
-    # Refresh PATH
-    Refresh-EnvironmentPath
-} else {
-    $nodeVersion = & node --version
-    Write-Log "Node.js is already installed ($nodeVersion)"
-}
-
-# Install jq
-if (-not (Test-CommandExists "jq")) {
-    Write-Log "Installing jq..."
-    try {
-        if (Test-Administrator) {
-            & choco install jq -y
-        } else {
-            Write-WarningLog "jq installation skipped (requires Administrator privileges)"
-        }
-    } catch {
-        Write-WarningLog "jq installation skipped: $_"
-    }
-} else {
-    Write-Log "jq is already installed"
-}
+# Install jq (optional)
+Install-ChocoPackage -PackageName "jq" -CommandName "jq" -ManualUrl "" -AllowSkip $true
 
 # Refresh PATH to pick up newly installed tools
 Refresh-EnvironmentPath
 
 Write-Host ""
+
+# ============================================================================
+# Phase 2.5: Convert ZIP Installation to Git Repository (Optional)
+# ============================================================================
+
+# If this was a ZIP download and git is now available, offer to initialize repository
+if ($needsGitInit -and (Test-CommandExists "git")) {
+    Write-Log "Initializing git repository for automatic updates..."
+    Write-Host ""
+
+    Write-Host "This directory was downloaded as a ZIP file. Would you like to convert it to a git repository?"
+    Write-Host "This will enable automatic updates via 'git pull' on future runs."
+    Write-Host ""
+    Write-Host "WARNING: This will reset any local file modifications to match the repository." -ForegroundColor Yellow
+    Write-Host ""
+	
+    $convertToGit = Read-Host "Convert to git repository? (Y/n)"
+	
+    if ([string]::IsNullOrEmpty($convertToGit) -or $convertToGit -eq 'Y' -or $convertToGit -eq 'y') {
+		Write-Log "Converting directory to git repository..."
+		
+        # Repository configuration
+        $repoUrl = "https://github.com/c0ffee0wl/llm-windows-setup.git"
+
+        # Temporarily disable strict error handling for git operations
+        $previousErrorAction = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+
+        try {
+            # Initialize git repository
+            Write-Log "Initializing git repository..."
+            & git -C $PSScriptRoot init 2>&1 | Out-Null
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-ErrorLog "Failed to initialize git repository"
+                throw "git init failed"
+            }
+
+            # Add remote
+            Write-Log "Adding remote origin: $repoUrl"
+            & git -C $PSScriptRoot remote add origin $repoUrl 2>&1 | Out-Null
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-ErrorLog "Failed to add remote origin"
+                throw "git remote add failed"
+            }
+
+            # Fetch from remote
+            Write-Log "Fetching from remote repository..."
+            & git -C $PSScriptRoot fetch origin 2>&1 | Out-Null
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-ErrorLog "Failed to fetch from remote repository"
+                Write-ErrorLog "Please check your internet connection and try again later"
+                throw "git fetch failed"
+            }
+
+            # Detect default branch (try main first, fallback to master)
+            Write-Log "Detecting default branch..."
+            $defaultBranch = $null
+
+            & git -C $PSScriptRoot ls-remote --heads origin main 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                $defaultBranch = "main"
+            } else {
+                & git -C $PSScriptRoot ls-remote --heads origin master 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0) {
+                    $defaultBranch = "master"
+                }
+            }
+
+            if (-not $defaultBranch) {
+                Write-ErrorLog "Could not detect default branch (tried 'main' and 'master')"
+                throw "Branch detection failed"
+            }
+
+            Write-Log "Using branch: $defaultBranch"
+
+            # Checkout branch
+            Write-Log "Checking out branch $defaultBranch..."
+            & git -C $PSScriptRoot checkout -b $defaultBranch "origin/$defaultBranch" 2>&1 | Out-Null
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-ErrorLog "Failed to checkout branch"
+                throw "git checkout failed"
+            }
+
+            # Set up branch tracking
+            Write-Log "Setting up branch tracking..."
+            & git -C $PSScriptRoot branch --set-upstream-to=origin/$defaultBranch $defaultBranch 2>&1 | Out-Null
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-WarningLog "Failed to set up branch tracking (non-critical)"
+            }
+
+            Write-Host ""
+            Write-Log "Git repository initialized successfully!"
+            Write-Log "Future runs of this script will automatically check for and apply updates via git pull"
+
+        } catch {
+            Write-ErrorLog "Failed to convert to git repository: $_"
+            Write-Host ""
+            Write-Host "You can manually initialize the repository later by running:" -ForegroundColor Yellow
+            Write-Host "  cd $PSScriptRoot" -ForegroundColor Yellow
+            Write-Host "  git init" -ForegroundColor Yellow
+            Write-Host "  git remote add origin $repoUrl" -ForegroundColor Yellow
+            Write-Host "  git fetch origin" -ForegroundColor Yellow
+            Write-Host "  git checkout -b main origin/main" -ForegroundColor Yellow
+        } finally {
+            # Restore strict error handling
+            $ErrorActionPreference = $previousErrorAction
+        }
+    } else {
+        Write-Log "Skipping git repository initialization"
+        Write-Host ""
+        Write-Host "To enable auto-updates later, you can:" -ForegroundColor Yellow
+        Write-Host "  1. Delete this directory" -ForegroundColor Yellow
+        Write-Host "  2. Clone the repository: git clone $repoUrl" -ForegroundColor Yellow
+    }
+
+    Write-Host ""
+}
 
 # ============================================================================
 # Phase 3: Install Python Tools (User Scope)
@@ -345,9 +548,7 @@ try {
 
     # Also ensure .local\bin is in current session PATH
     $pipxBinPath = Join-Path $env:USERPROFILE ".local\bin"
-    if ($env:Path -notlike "*$pipxBinPath*") {
-        $env:Path = "$pipxBinPath;$env:Path"
-    }
+    Add-ToPath $pipxBinPath
 } catch {
     Write-ErrorLog "Failed to install pipx: $_"
     exit 1
@@ -368,9 +569,7 @@ try {
 
 # Refresh PATH
 $pipxBinPath = Join-Path $env:USERPROFILE ".local\bin"
-if ($env:Path -notlike "*$pipxBinPath*") {
-    $env:Path = "$pipxBinPath;$env:Path"
-}
+Add-ToPath $pipxBinPath
 
 Write-Host ""
 
@@ -381,32 +580,15 @@ Write-Host ""
 Write-Log "Installing/updating llm..."
 Write-Host ""
 
-$ErrorActionPreference = "Continue"
-
-# Check if llm is already installed
-$llmInstalled = & uv tool list 2>&1 | Select-String "llm"
-
-if ($llmInstalled) {
-    Write-Log "llm is already installed, upgrading..."
-    & uv tool upgrade llm
-} else {
-    Write-Log "Installing llm..."
-    & uv tool install llm
-}
-
-if ($LASTEXITCODE -ne 0) {
-    $ErrorActionPreference = "Stop"
+# Install llm via uv
+if (-not (Install-UvTool -ToolName "llm")) {
     Write-ErrorLog "Failed to install/upgrade llm"
     exit 1
 }
 
-$ErrorActionPreference = "Stop"
-
 # Ensure llm is in PATH
 $uvToolsPath = Join-Path $env:USERPROFILE ".local\bin"
-if ($env:Path -notlike "*$uvToolsPath*") {
-    $env:Path = "$uvToolsPath;$env:Path"
-}
+Add-ToPath $uvToolsPath
 
 Write-Host ""
 
@@ -465,7 +647,7 @@ if ($shouldPromptForConfig) {
         Write-Log "Configuring Azure OpenAI API..."
         Write-Host ""
 
-        $azureApiBase = Read-Host "Enter your Azure Foundry resource URL (e.g., https://YOUR-RESOURCE.openai.azure.com/openai/v1/)"
+        $azureApiBase = Read-Host "Enter your Azure Foundry resource URL (e.g. https://YOUR-RESOURCE.openai.azure.com/openai/v1/)"
 
         # Set Azure API key
         & llm keys set azure
@@ -474,12 +656,13 @@ if ($shouldPromptForConfig) {
     } else {
         Write-Log "Skipping Azure OpenAI configuration"
         # Create marker file to remember user declined
-        $skipMarkerContent = @"
-# Configuration skipped by user
-# To configure Azure OpenAI, run: .\Install-LlmTools.ps1 -Azure
-# Or manually edit this file following the format at:
-# https://llm.datasette.io/en/stable/openai-models.html
-"@
+        $skipMarkerLines = @(
+            "# Configuration skipped by user",
+            "# To configure Azure OpenAI, run: .\Install-LlmTools.ps1 -Azure",
+            "# Or manually edit this file following the format at:",
+            "# https://llm.datasette.io/en/stable/openai-models.html"
+        )
+        $skipMarkerContent = $skipMarkerLines -join "`n"
         New-Item -ItemType Directory -Path $llmConfigDir -Force | Out-Null
         Set-Content -Path $extraModelsFile -Value $skipMarkerContent -Encoding Ascii
     }
@@ -553,6 +736,7 @@ Write-Host ""
 Write-Log "Installing/updating llm plugins..."
 Write-Host ""
 
+# Regular plugins
 $plugins = @(
     "llm-gemini",
     "llm-openrouter",
@@ -745,9 +929,7 @@ if (-not (Test-Administrator)) {
         npm config set prefix $npmGlobalPrefix
 
         # Add to PATH for current session
-        if ($env:Path -notlike "*$npmGlobalPrefix*") {
-            $env:Path = "$npmGlobalPrefix;$env:Path"
-        }
+        Add-ToPath $npmGlobalPrefix
 
         Write-Log "npm configured to use: $npmGlobalPrefix"
     } catch {
@@ -758,56 +940,12 @@ if (-not (Test-Administrator)) {
 # Refresh PATH to ensure npm and node are accessible
 Refresh-EnvironmentPath
 
-# Install repomix
-Write-Log "Installing/updating repomix..."
-try {
-    npm install -g repomix
-    if ($LASTEXITCODE -ne 0) {
-        Write-WarningLog "Failed to install repomix"
-    }
-} catch {
-    Write-WarningLog "Failed to install repomix: $_"
-}
+# Install npm packages
+Install-NpmPackage -PackageName "repomix"
 
-# Install gitingest
-Write-Log "Installing/updating gitingest..."
-
-$ErrorActionPreference = "Continue"
-
-$gitingestInstalled = & uv tool list 2>&1 | Select-String "gitingest"
-if ($gitingestInstalled) {
-    & uv tool upgrade gitingest
-    if ($LASTEXITCODE -ne 0) {
-        Write-WarningLog "Failed to upgrade gitingest"
-    }
-} else {
-    & uv tool install gitingest
-    if ($LASTEXITCODE -ne 0) {
-        Write-WarningLog "Failed to install gitingest"
-    }
-}
-
-$ErrorActionPreference = "Stop"
-
-# Install files-to-prompt
-Write-Log "Installing/updating files-to-prompt..."
-
-$ErrorActionPreference = "Continue"
-
-$filesPromptInstalled = & uv tool list 2>&1 | Select-String "files-to-prompt"
-if ($filesPromptInstalled) {
-    & uv tool upgrade files-to-prompt
-    if ($LASTEXITCODE -ne 0) {
-        Write-WarningLog "Failed to upgrade files-to-prompt"
-    }
-} else {
-    & uv tool install "git+https://github.com/c0ffee0wl/files-to-prompt"
-    if ($LASTEXITCODE -ne 0) {
-        Write-WarningLog "Failed to install files-to-prompt"
-    }
-}
-
-$ErrorActionPreference = "Stop"
+# Install uv tools
+Install-UvTool -ToolName "gitingest"
+Install-UvTool -ToolName "git+https://github.com/c0ffee0wl/files-to-prompt" -IsGitPackage $true
 
 Write-Host ""
 
@@ -815,27 +953,8 @@ Write-Host ""
 Write-Log "Installing/updating Claude Code and OpenCode..."
 Write-Host ""
 
-# Install Claude Code
-Write-Log "Installing/updating Claude Code..."
-try {
-    npm install -g "@anthropic-ai/claude-code"
-    if ($LASTEXITCODE -ne 0) {
-        Write-WarningLog "Failed to install Claude Code"
-    }
-} catch {
-    Write-WarningLog "Failed to install Claude Code: $_"
-}
-
-# Install OpenCode
-Write-Log "Installing/updating OpenCode..."
-try {
-    npm install -g "opencode-ai@latest"
-    if ($LASTEXITCODE -ne 0) {
-        Write-WarningLog "Failed to install OpenCode"
-    }
-} catch {
-    Write-WarningLog "Failed to install OpenCode: $_"
-}
+Install-NpmPackage -PackageName "@anthropic-ai/claude-code"
+Install-NpmPackage -PackageName "opencode-ai@latest"
 
 Write-Host ""
 
@@ -870,6 +989,6 @@ Write-Host ""
 Write-Log "To update all tools in the future, simply re-run this script:"
 Write-Log "  .\Install-LlmTools.ps1"
 Write-Host ""
-Write-Log "To reconfigure Azure OpenAI (e.g., update endpoint or if initially skipped):"
+Write-Log "To reconfigure Azure OpenAI (e.g. update endpoint or if initially skipped):"
 Write-Log "  .\Install-LlmTools.ps1 -Azure"
 Write-Host ""

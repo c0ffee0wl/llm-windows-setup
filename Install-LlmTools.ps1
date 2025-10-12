@@ -287,20 +287,42 @@ if ($isGitRepo) {
 
             if ($behind -gt 0) {
                 Write-Log "Updates found! Pulling latest changes..."
-                $pullOutput = & git -C $PSScriptRoot pull --ff-only 2>&1
 
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Log "Updates applied successfully. Re-executing script..."
+                # Check for local modifications before attempting pull
+                $statusOutput = & git -C $PSScriptRoot status --porcelain 2>&1
+                if ($statusOutput) {
+                    Write-WarningLog "Cannot auto-update: local modifications detected"
                     Write-Host ""
-
-                    # Restore error handling before re-execution
-                    $ErrorActionPreference = $previousErrorAction
-
-                    & $MyInvocation.MyCommand.Path @PSBoundParameters
-                    exit $LASTEXITCODE
-                } else {
-                    Write-WarningLog "Failed to pull updates: git pull returned exit code $LASTEXITCODE"
+                    Write-Host "Modified files:" -ForegroundColor Yellow
+                    Write-Host $statusOutput -ForegroundColor Yellow
+                    Write-Host ""
+                    Write-Host "To enable auto-update, choose one option:" -ForegroundColor Cyan
+                    Write-Host "  1. Commit changes:  git add . && git commit -m 'local changes'" -ForegroundColor Cyan
+                    Write-Host "  2. Stash changes:   git stash" -ForegroundColor Cyan
+                    Write-Host "  3. Discard changes: git reset --hard @{u}" -ForegroundColor Cyan
+                    Write-Host ""
                     Write-WarningLog "Continuing with current version"
+                } else {
+                    # Working directory is clean, safe to pull
+                    $pullOutput = & git -C $PSScriptRoot pull --ff-only 2>&1
+
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Log "Updates applied successfully. Re-executing script..."
+                        Write-Host ""
+
+                        # Restore error handling before re-execution
+                        $ErrorActionPreference = $previousErrorAction
+
+                        & $MyInvocation.MyCommand.Path @PSBoundParameters
+                        exit $LASTEXITCODE
+                    } else {
+                        Write-WarningLog "Failed to pull updates: git pull returned exit code $LASTEXITCODE"
+                        Write-Host ""
+                        Write-Host "Git output:" -ForegroundColor Yellow
+                        Write-Host $pullOutput -ForegroundColor Yellow
+                        Write-Host ""
+                        Write-WarningLog "Continuing with current version"
+                    }
                 }
             } else {
                 Write-Log "Script is up to date"

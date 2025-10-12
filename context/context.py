@@ -3,7 +3,7 @@
 Context - Extract PowerShell command history from transcript files
 
 Extracts prompt blocks (prompt + command + output) from PowerShell transcript files.
-Each block contains everything from one prompt to the next, preserving exact formatting.
+Uses language-agnostic parsing based on universal transcript structure elements.
 
 Usage:
     context          # Show last prompt block (default)
@@ -18,7 +18,7 @@ import sys
 import re
 import argparse
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Optional
 
 
 def find_transcript_file() -> Optional[str]:
@@ -51,59 +51,60 @@ def find_transcript_file() -> Optional[str]:
 
 def parse_transcript(text: str) -> List[str]:
     """
-    Parse PowerShell transcript and extract command blocks.
+    Parse PowerShell transcript using universal structure elements.
 
-    PowerShell transcripts have this structure:
-    - Transcript header (starts with "**********************")
-    - Each command is preceded by "PS <path>>" prompt
-    - Command output follows
-    - Commands at column 0, continuation lines indented
+    PowerShell transcripts have this structure (in all languages):
+    - **********************
+    - [localized header/footer text]
+    - **********************
+    - PS <path>> command
+    - output
+    - **********************
 
-    Returns list of blocks (prompt + command + output).
+    We use only the universal elements:
+    1. **** separators (never localized)
+    2. PS <path>> prompt pattern (never localized)
+
+    Returns list of command blocks (prompt + command + output).
     """
-    lines = text.split('\n')
-    blocks = []
-    current_block = []
-    in_command_block = False
 
-    # Skip transcript header (lines starting with ****)
-    start_idx = 0
-    for i, line in enumerate(lines):
-        if not line.startswith('****'):
-            start_idx = i
-            break
+    # Normalize line endings and strip BOM if present
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
 
-    # PowerShell prompt pattern: PS <path>>
-    # Also match custom prompts that end with > or $
-    prompt_pattern = re.compile(r'^PS\s+[A-Za-z]:\\.*?>\s*$|^PS\s+[A-Za-z]:\\.*?>\s+\S')
+    # Remove UTF-16 BOM if present (shows as \ufeff)
+    if text.startswith('\ufeff'):
+        text = text[1:]
 
-    for line in lines[start_idx:]:
-        # Skip transcript footer
-        if line.startswith('****'):
-            if current_block:
-                blocks.append('\n'.join(current_block))
-                current_block = []
+    # Also remove other potential BOM artifacts
+    text = text.lstrip('\x00\ufeff')
+
+    # Split on lines that are ONLY asterisks (20+)
+    # Using MULTILINE flag to match at start/end of lines
+    separator_pattern = r'^\*{20,}$'
+    blocks = re.split(separator_pattern, text, flags=re.MULTILINE)
+
+    # Universal PowerShell prompt pattern (works in all languages)
+    # Matches: PS C:\path> or PS /path> (PowerShell Core on Linux)
+    prompt_pattern = re.compile(r'^PS\s+[A-Za-z]:[^\n]*>\s*', re.MULTILINE)
+
+    command_blocks = []
+
+    for block in blocks:
+        block = block.strip()
+
+        # Skip empty blocks
+        if not block:
             continue
 
-        # Detect prompt line using transcript structure
-        # In transcripts, prompts are at column 0 and match PS pattern
-        if prompt_pattern.match(line):
-            # Save previous block
-            if current_block:
-                blocks.append('\n'.join(current_block))
-                current_block = []
+        # Skip header blocks (contain transcript start/end text)
+        # These never have PS prompts in them
+        if not prompt_pattern.search(block):
+            continue
 
-            current_block.append(line)
-            in_command_block = True
-        elif in_command_block:
-            # Everything after prompt is part of the block (command + output)
-            current_block.append(line)
+        # This is a command block - keep it
+        command_blocks.append(block)
 
-    # Add final block
-    if current_block:
-        blocks.append('\n'.join(current_block))
-
-    return blocks
+    return command_blocks
 
 
 def filter_self_referential(blocks: List[str]) -> List[str]:
@@ -114,15 +115,13 @@ def filter_self_referential(blocks: List[str]) -> List[str]:
         return blocks
 
     last_block = blocks[-1]
-    lines = [l for l in last_block.split('\n') if l.strip()]
+    lines = [l.strip() for l in last_block.split('\n') if l.strip()]
 
-    # Check if last block is just a prompt with 'context' command
-    if len(lines) <= 1:
-        # Single line, probably just empty prompt
-        return blocks[:-1]
-    elif len(lines) == 2:
-        # Check if second line is 'context' command
-        if re.search(r'\bcontext\b', lines[1]):
+    # If last block is very short, it might just be the current prompt
+    if len(lines) <= 2:
+        # Check if it contains 'context' command
+        block_text = '\n'.join(lines).lower()
+        if 'context' in block_text:
             return blocks[:-1]
 
     return blocks
@@ -163,6 +162,11 @@ def main():
         '-a', '--all',
         action='store_true',
         help='Show entire history'
+    )
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Show debug information'
     )
 
     args = parser.parse_args()
@@ -215,21 +219,77 @@ def main():
         print("Make sure transcription is enabled in your PowerShell profile.", file=sys.stderr)
         sys.exit(1)
 
-    # Read and parse transcript
-    try:
-        with open(transcript_file, 'r', encoding='utf-16-le', errors='replace') as f:
-            text = f.read()
-    except UnicodeDecodeError:
-        # Try UTF-8 as fallback
+    # Read transcript with proper encoding detection
+    # Try multiple encodings in order of likelihood
+    encodings_to_try = [
+        'utf-8',           # Most common on modern systems
+        'utf-16-le',       # PowerShell default on Windows
+        'utf-16-be',       # Alternate byte order
+        'cp1252',          # Windows ANSI (Western European)
+        'latin-1',         # Fallback (never fails but may give garbage)
+    ]
+
+    text = None
+    encoding_used = None
+
+    for encoding in encodings_to_try:
         try:
-            with open(transcript_file, 'r', encoding='utf-8', errors='replace') as f:
+            with open(transcript_file, 'r', encoding=encoding) as f:
                 text = f.read()
+
+            # Verify the text makes sense (contains expected patterns)
+            # If it's the wrong encoding, we'll get garbage
+            if '****' in text or re.search(r'PS\s+[A-Za-z]:', text):
+                encoding_used = encoding
+                break
+            else:
+                # Text decoded but doesn't look like a PowerShell transcript
+                # Try next encoding
+                text = None
+                continue
+
+        except (UnicodeDecodeError, UnicodeError):
+            # This encoding didn't work, try next
+            continue
         except Exception as e:
+            # Other error (file not found, permission denied, etc.)
             print(f"Error reading transcript: {e}", file=sys.stderr)
             sys.exit(1)
 
+    if text is None:
+        print(f"Error: Could not decode transcript with any known encoding", file=sys.stderr)
+        print(f"Tried: {', '.join(encodings_to_try)}", file=sys.stderr)
+        sys.exit(1)
+
+    # Debug mode: show raw transcript info
+    if args.debug:
+        print(f"# Transcript file: {transcript_file}", file=sys.stderr)
+        print(f"# Encoding used: {encoding_used}", file=sys.stderr)
+        print(f"# File size: {len(text)} characters", file=sys.stderr)
+        print(f"# Contains **** separators: {'****' in text}", file=sys.stderr)
+        print(f"# Contains PS prompts: {bool(re.search(r'PS\\s+[A-Za-z]:', text))}", file=sys.stderr)
+
+        # Show first few characters (to debug encoding issues)
+        first_chars = repr(text[:100])
+        print(f"# First 100 chars: {first_chars}", file=sys.stderr)
+
+        # Count separator lines
+        separator_count = len(re.findall(r'^\*{20,}$', text, re.MULTILINE))
+        print(f"# Separator lines found: {separator_count}", file=sys.stderr)
+        print("", file=sys.stderr)
+
     # Extract blocks
     blocks = parse_transcript(text)
+
+    if args.debug:
+        print(f"# Found {len(blocks)} command blocks", file=sys.stderr)
+
+        # Show first few characters of each block
+        for i, block in enumerate(blocks[:5]):  # Show first 5 blocks
+            preview = block[:80].replace('\n', '\\n')
+            print(f"# Block {i+1}: {repr(preview)}...", file=sys.stderr)
+
+        print("", file=sys.stderr)
 
     # Filter self-referential context commands
     blocks = filter_self_referential(blocks)

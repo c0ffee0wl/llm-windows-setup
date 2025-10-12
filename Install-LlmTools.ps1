@@ -189,28 +189,31 @@ function Install-UvTool {
 
     Write-Log "Installing/updating $ToolName..."
 
-    try {
-        # Check if tool is already installed
-        $toolInstalled = & uv tool list 2>&1 | Select-String ($ToolName -replace 'git\+https://.+/(.+)', '$1')
+    # Temporarily disable strict error handling for uv operations
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
 
-        if ($toolInstalled) {
-            & uv tool upgrade ($ToolName -replace 'git\+https://.+/(.+)', '$1') 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                Write-WarningLog "Failed to upgrade $ToolName"
-                return $false
-            }
-        } else {
-            & uv tool install $ToolName 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                Write-WarningLog "Failed to install $ToolName"
-                return $false
-            }
-        }
-        return $true
-    } catch {
-        Write-WarningLog "Failed to install/upgrade $ToolName : $_"
+    # Extract tool name from git URL if needed (e.g., "git+https://github.com/user/repo" -> "repo")
+    $toolNameToCheck = $ToolName -replace 'git\+https://.+/(.+?)(?:\.git)?$', '$1'
+
+    # Check if tool is already installed
+    $toolInstalled = & uv tool list 2>&1 | Select-String $toolNameToCheck
+
+    if ($toolInstalled) {
+        & uv tool upgrade $toolNameToCheck
+    } else {
+        & uv tool install $ToolName
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        $ErrorActionPreference = $previousErrorAction
+        Write-WarningLog "Failed to install/upgrade $ToolName"
         return $false
     }
+
+    # Restore previous error handling
+    $ErrorActionPreference = $previousErrorAction
+    return $true
 }
 
 function Install-NpmPackage {

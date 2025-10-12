@@ -42,6 +42,13 @@ Add-ToPathIfExists (Join-Path $env:APPDATA "npm")
 Add-ToPathIfExists (Join-Path $env:USERPROFILE ".npm-global")
 
 # ============================================================================
+# Resolve llm.exe Path (before function definition)
+# ============================================================================
+
+# Store the full path to llm.exe to avoid command resolution issues inside the llm wrapper function
+$script:LlmExecutable = (Get-Command -Name llm -CommandType Application -ErrorAction Stop).Source
+
+# ============================================================================
 # Custom llm Wrapper Function
 # ============================================================================
 
@@ -80,13 +87,13 @@ function llm {
 
     # Check for help/version flags - pass through directly
     if ($args -contains "-h" -or $args -contains "--help" -or $args -contains "--version") {
-        & (Get-Command -Name llm -CommandType Application) @args
+        & $script:LlmExecutable @args
         return
     }
 
     # Check if first argument is an excluded subcommand
     if ($args.Count -gt 0 -and $excludeCommands -contains $args[0]) {
-        & (Get-Command -Name llm -CommandType Application) @args
+        & $script:LlmExecutable @args
         return
     }
 
@@ -103,19 +110,19 @@ function llm {
     }
 
     if ($skipTemplate) {
-        & (Get-Command -Name llm -CommandType Application) @args
+        & $script:LlmExecutable @args
         return
     }
 
     # Handle 'chat' subcommand specially
     if ($args.Count -gt 0 -and $args[0] -eq "chat") {
         $chatArgs = $args[1..($args.Count - 1)]
-        & (Get-Command -Name llm -CommandType Application) chat -t assistant @chatArgs
+        & $script:LlmExecutable chat -t assistant @chatArgs
         return
     }
 
     # Default: add assistant template
-    & (Get-Command -Name llm -CommandType Application) -t assistant @args
+    & $script:LlmExecutable -t assistant @args
 }
 
 # ============================================================================
@@ -156,17 +163,26 @@ if (Get-Module -ListAvailable -Name PSReadLine) {
             # Call llm cmdcomp - it will run interactively on TTY
             # The interactive UI (prompts, revisions) appears on the terminal
             # Only the final accepted command is returned via stdout
-            $result = & (Get-Command -Name llm -CommandType Application) cmdcomp $line
+            $result = & $script:LlmExecutable cmdcomp $line
+            $exitCode = $LASTEXITCODE
 
-            # If successful and non-empty, insert result and execute immediately
-            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($result)) {
-                [Microsoft.PowerShell.PSConsoleReadLine]::Insert($result)
-                [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+            # Check for success
+            if ($exitCode -eq 0) {
+                if (-not [string]::IsNullOrWhiteSpace($result)) {
+                    # Success with result - insert and execute
+                    [Microsoft.PowerShell.PSConsoleReadLine]::Insert($result)
+                    [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+                } else {
+                    # Success but empty result (user cancelled or no suggestion)
+                    [Console]::WriteLine("Command completion returned empty result")
+                }
+            } else {
+                # Non-zero exit code
+                [Console]::WriteLine("Command completion failed with exit code: $exitCode")
             }
-            # If no valid result, buffer remains empty (cleared above)
         } catch {
-            # On exception, show error and leave buffer empty
-            Write-Host "Command completion failed: $_" -ForegroundColor Red
+            # Exception during execution
+            [Console]::WriteLine("Command completion error: $_")
         }
     }
 }

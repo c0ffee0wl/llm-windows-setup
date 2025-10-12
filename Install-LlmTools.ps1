@@ -944,6 +944,136 @@ if (Test-CommandExists "pwsh") {
 Write-Host ""
 
 # ============================================================================
+# Phase 7.5: Context System Setup
+# ============================================================================
+
+Write-Log "Setting up PowerShell context system..."
+Write-Host ""
+
+# Check if Python is available (required for context command)
+if (-not (Test-PythonAvailable)) {
+    Write-WarningLog "Python is not available. Context system requires Python."
+    Write-WarningLog "Skipping context system setup. You can install Python and re-run this script later."
+    Write-Host ""
+} else {
+    # Prompt for transcript storage location (first-run only)
+    $transcriptConfigMarker = Join-Path $llmConfigDir ".transcript-configured"
+
+    if (-not (Test-Path $transcriptConfigMarker)) {
+        Write-Log "Configuring PowerShell session history storage..."
+        Write-Host ""
+        Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+        Write-Host "PowerShell sessions are logged for AI context retrieval." -ForegroundColor Cyan
+        Write-Host "Choose storage location:" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  1) Temporary - Store in `$env:TEMP\PowerShell_Transcripts (cleared on logout/reboot)" -ForegroundColor Yellow
+        Write-Host "  2) Permanent - Store in `$env:USERPROFILE\PowerShell_Transcripts (survives reboots)" -ForegroundColor Yellow
+        Write-Host ""
+        $storageChoice = Read-Host "Choice (1/2) [default: 1]"
+        Write-Host ""
+
+        if ($storageChoice -eq '2') {
+            $transcriptLogDir = Join-Path $env:USERPROFILE "PowerShell_Transcripts"
+        } else {
+            $transcriptLogDir = Join-Path $env:TEMP "PowerShell_Transcripts"
+        }
+
+        # Create directory
+        New-Item -ItemType Directory -Path $transcriptLogDir -Force | Out-Null
+
+        # Save configuration marker
+        New-Item -ItemType Directory -Path $llmConfigDir -Force | Out-Null
+        Set-Content -Path $transcriptConfigMarker -Value $transcriptLogDir -Encoding Ascii
+
+        Write-Log "Transcript storage configured: $transcriptLogDir"
+    } else {
+        $transcriptLogDir = Get-Content $transcriptConfigMarker -Raw
+        $transcriptLogDir = $transcriptLogDir.Trim()
+        Write-Log "Using existing transcript storage: $transcriptLogDir"
+    }
+
+    # Install context.py script
+    Write-Log "Installing context command..."
+    $contextSource = Join-Path $PSScriptRoot "context\context.py"
+    $contextDest = Join-Path $env:USERPROFILE ".local\bin\context.py"
+
+    if (Test-Path $contextSource) {
+        # Create .local\bin if it doesn't exist
+        $localBinDir = Join-Path $env:USERPROFILE ".local\bin"
+        New-Item -ItemType Directory -Path $localBinDir -Force | Out-Null
+
+        # Copy context.py
+        Copy-Item $contextSource $contextDest -Force
+
+        # Create wrapper batch file for easier invocation
+        $contextBat = Join-Path $localBinDir "context.bat"
+        $contextBatContent = "@echo off`r`npython `"$contextDest`" %*"
+        Set-Content -Path $contextBat -Value $contextBatContent -Encoding Ascii
+
+        Write-Log "Context command installed to $localBinDir"
+    } else {
+        Write-WarningLog "Context script not found at $contextSource"
+    }
+
+    # Install llm-tools-context plugin
+    Write-Log "Installing llm-tools-context plugin..."
+    $contextPluginPath = Join-Path $PSScriptRoot "llm-tools-context"
+
+    if (Test-Path $contextPluginPath) {
+        try {
+            & llm install $contextPluginPath --upgrade
+            if ($LASTEXITCODE -ne 0) {
+                & llm install $contextPluginPath
+            }
+            Write-Log "llm-tools-context plugin installed successfully"
+        } catch {
+            Write-WarningLog "Failed to install llm-tools-context plugin: $_"
+        }
+    } else {
+        Write-WarningLog "llm-tools-context plugin not found at $contextPluginPath"
+    }
+
+    # Update PowerShell profiles to include transcript configuration
+    Write-Log "Updating PowerShell profiles with transcript configuration..."
+
+    # Read transcript configuration
+    $transcriptEnvConfig = @"
+
+# PowerShell Transcript Configuration
+`$env:TRANSCRIPT_LOG_DIR = "$transcriptLogDir"
+"@
+
+    # Add transcript config to profiles if not already present
+    foreach ($profilePath in @($ps5ProfilePath, $ps7ProfilePath)) {
+        if (Test-Path $profilePath) {
+            $profileContent = Get-Content $profilePath -Raw -ErrorAction SilentlyContinue
+
+            if ($profileContent -notmatch "TRANSCRIPT_LOG_DIR") {
+                # Find the line that sources llm-integration.ps1
+                $lines = Get-Content $profilePath
+                $insertIndex = -1
+
+                for ($i = 0; $i -lt $lines.Count; $i++) {
+                    if ($lines[$i] -match "# LLM Tools Integration") {
+                        $insertIndex = $i
+                        break
+                    }
+                }
+
+                if ($insertIndex -ge 0) {
+                    # Insert transcript config before LLM Tools Integration comment
+                    $newContent = ($lines[0..($insertIndex-1)] + $transcriptEnvConfig + $lines[$insertIndex..($lines.Count-1)]) -join "`n"
+                    Set-Content -Path $profilePath -Value $newContent -Encoding UTF8
+                    Write-Log "Added transcript configuration to $(Split-Path $profilePath -Leaf)"
+                }
+            }
+        }
+    }
+}
+
+Write-Host ""
+
+# ============================================================================
 # Phase 9: Install Additional Tools
 # ============================================================================
 
@@ -1006,21 +1136,28 @@ Write-Log "============================================="
 Write-Host ""
 Write-Log "Installed tools:"
 Write-Log "  - llm (Simon Willison's CLI tool)"
-Write-Log "  - llm plugins (gemini, anthropic, tools, fragments, jq, fabric templates)"
+Write-Log "  - llm plugins (gemini, anthropic, tools, fragments, jq, fabric templates, context)"
 Write-Log "  - repomix (repository packager)"
 Write-Log "  - gitingest (Git repository to LLM-friendly text)"
 Write-Log "  - files-to-prompt (file content formatter)"
+Write-Log "  - context (PowerShell history extraction for AI)"
 Write-Log "  - Claude Code (Anthropic's agentic coding CLI)"
 Write-Log "  - OpenCode (AI coding agent for terminal)"
 Write-Host ""
 Write-Log "PowerShell integration files:"
 Write-Log "  - $integrationFile"
 Write-Host ""
+Write-Log "Features:"
+Write-Log "  - Automatic PowerShell transcript logging for AI context retrieval"
+Write-Log "  - AI command completion with Ctrl+N"
+Write-Log "  - Custom assistant template with German responses and security focus"
+Write-Host ""
 Write-Log "Next steps:"
 Write-Log "  1. Restart your PowerShell session or run: . `$PROFILE"
 Write-Log "  2. Test llm: llm 'Hello, how are you?'"
 Write-Log "  3. Use Ctrl+N in PowerShell for AI command completion"
-Write-Log "  4. Test and configure OpenCode: opencode"
+Write-Log "  4. Test context: context (shows last command)"
+Write-Log "  5. Test and configure OpenCode: opencode"
 Write-Log "     Configuration: https://opencode.ai/docs/providers"
 Write-Host ""
 Write-Log "To update all tools in the future, simply re-run this script:"

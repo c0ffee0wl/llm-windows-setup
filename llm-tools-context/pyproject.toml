@@ -1,0 +1,18 @@
+[project]
+name = "llm-tools-context"
+version = "0.1.0"
+description = "Extract recent PowerShell commands and outputs from transcripts for LLM"
+readme = "README.md"
+authors = [{name = "c0ffee0wl"}]
+license = {text = "Apache-2.0"}
+requires-python = ">=3.8"
+dependencies = [
+    "llm"
+]
+
+[project.entry-points.llm]
+llm_tools_context = "llm_tools_context"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

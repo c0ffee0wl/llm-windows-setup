@@ -188,6 +188,47 @@ if (Get-Module -ListAvailable -Name PSReadLine) {
 }
 
 # ============================================================================
+# Automatic PowerShell Transcript Logging
+# ============================================================================
+
+# Only start transcript if this is an interactive session and not already transcribing
+if ($Host.Name -eq "ConsoleHost" -and -not $Host.PrivateData.PSObject.Properties['TranscriptPath']) {
+    try {
+        # Configure transcript directory (user can override via environment variable)
+        if (-not $env:TRANSCRIPT_LOG_DIR) {
+            $env:TRANSCRIPT_LOG_DIR = Join-Path $env:TEMP "PowerShell_Transcripts"
+        }
+
+        # Create transcript directory if it doesn't exist
+        if (-not (Test-Path $env:TRANSCRIPT_LOG_DIR)) {
+            New-Item -ItemType Directory -Path $env:TRANSCRIPT_LOG_DIR -Force | Out-Null
+        }
+
+        # Generate unique transcript filename (timestamp + PID)
+        $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
+        $transcriptFile = Join-Path $env:TRANSCRIPT_LOG_DIR "PowerShell_${timestamp}_$PID.txt"
+
+        # Store in environment variable for context command
+        $env:TRANSCRIPT_LOG_FILE = $transcriptFile
+
+        # Start transcript (suppress output message)
+        Start-Transcript -Path $transcriptFile -IncludeInvocationHeader | Out-Null
+
+        # Show session log info (unless TRANSCRIPT_LOG_SILENT is set)
+        if ($env:TRANSCRIPT_LOG_SILENT -ne "true" -and $env:TRANSCRIPT_LOG_SILENT -ne "1") {
+            Write-Host ""
+            Write-Host "Session logged for 'context' command. To query this session from another terminal:" -ForegroundColor Cyan
+            Write-Host "`$env:TRANSCRIPT_LOG_FILE = '$transcriptFile'" -ForegroundColor Gray
+            Write-Host ""
+        }
+    }
+    catch {
+        # Silently fail if transcript cannot be started (non-critical feature)
+        # User can still use PowerShell without context logging
+    }
+}
+
+# ============================================================================
 # Informational Message (optional - can be removed if unwanted)
 # ============================================================================
 

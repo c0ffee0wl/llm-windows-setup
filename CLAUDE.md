@@ -89,7 +89,41 @@ The `assistant.yaml` template is Windows-specific with:
 - **Shell**: PowerShell 5.1/7 in Windows Terminal
 - **Language**: German responses, English code
 - **Security Focus**: IT security, ethical hacking, forensics expertise
-- **NO context tool** - Unlike Linux version, terminal history integration not included
+- **context tool available** - PowerShell session history integration via transcript logging
+
+### PowerShell Context System Architecture
+
+**Windows-native session logging and AI context integration**:
+
+1. **Automatic Transcription** (`integration/llm-integration.ps1`): Interactive PowerShell sessions automatically start transcript recording
+   - Uses native `Start-Transcript` cmdlet (no external dependencies)
+   - One transcript per session (unique filename: `PowerShell_<timestamp>_<PID>.txt`)
+   - Stores transcripts in configurable directory via `$env:TRANSCRIPT_LOG_DIR`
+   - Sets `$env:TRANSCRIPT_LOG_FILE` to point to current session transcript
+   - Gracefully handles nested shells (skips if already transcribing)
+
+2. **Context Extraction** (`context/context.py`): Python script that parses PowerShell transcripts
+   - Reads transcript files (UTF-16-LE or UTF-8)
+   - Detects commands using transcript structure (indentation-based parsing)
+   - Extracts "blocks" containing prompt + command + output
+   - Supports pagination: `context` (last 1), `context 5` (last 5), `context all` (entire history)
+   - Environment export: `context -e` outputs variable assignment command
+
+3. **LLM Integration** (`llm-tools-context/`): Python plugin exposes context as an llm tool
+   - Registers `context(input)` function for AI to call
+   - Returns formatted command history with `#c#` prefix per line
+   - Example: AI can retrieve last 10 commands with `context(10)`
+
+**Architecture Flow**: PowerShell starts → `Start-Transcript` records → `$env:TRANSCRIPT_LOG_FILE` points to transcript → `context.py` parses it → `llm-tools-context` exposes to AI
+
+**Storage Options**:
+  - **Temporary**: Stores in `%TEMP%\PowerShell_Transcripts` (cleared on logout/reboot, default)
+  - **Permanent**: Stores in `%USERPROFILE%\PowerShell_Transcripts` (survives reboots)
+
+**Multi-Session Handling**:
+- Each PowerShell window/tab has its own transcript
+- `$env:TRANSCRIPT_LOG_FILE` tracks current session
+- To query a different session: `$env:TRANSCRIPT_LOG_FILE = 'C:\path\to\transcript.txt'`
 
 ## Helper Functions (Refactored Architecture)
 
@@ -217,6 +251,14 @@ llm "test query"
 # Test command completion manually
 llm cmdcomp "list files"
 
+# Test context system
+Get-Command context
+context          # Show last command
+context 5        # Show last 5 commands
+context all      # Show entire session
+$env:TRANSCRIPT_LOG_FILE  # Check transcript file path
+$env:TRANSCRIPT_LOG_DIR   # Check transcript directory
+
 # Test PowerShell integration (after loading profile)
 . $PROFILE
 
@@ -226,6 +268,7 @@ $env:PATH -split ';' | Select-String "npm"
 
 # Check installed llm plugins
 llm plugins
+llm plugins list | Select-String "context"
 
 # Verify Azure configuration
 Get-Content $env:APPDATA\io.datasette.llm\extra-openai-models.yaml
@@ -336,6 +379,7 @@ The core design uses a **self-updating script pattern** with safe execution:
 
 - `%APPDATA%\io.datasette.llm\extra-openai-models.yaml` - Azure OpenAI model config
 - `%APPDATA%\io.datasette.llm\templates\assistant.yaml` - LLM template
+- `%APPDATA%\io.datasette.llm\.transcript-configured` - Transcript storage configuration marker
 - `%USERPROFILE%\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` - PS5 profile
 - `%USERPROFILE%\Documents\PowerShell\Microsoft.PowerShell_profile.ps1` - PS7 profile
 
@@ -344,6 +388,12 @@ The core design uses a **self-updating script pattern** with safe execution:
 - **uv tools** (llm, gitingest, files-to-prompt): `%USERPROFILE%\.local\bin`
 - **npm global**: `%APPDATA%\npm` (admin) or `%USERPROFILE%\.npm-global` (user)
 - **pipx**: `%USERPROFILE%\.local\bin`
+- **context command**: `%USERPROFILE%\.local\bin\context.py` and `%USERPROFILE%\.local\bin\context.bat`
+
+### Transcript Storage
+
+- `%TEMP%\PowerShell_Transcripts\*.txt` - Temporary transcript storage (default)
+- `%USERPROFILE%\PowerShell_Transcripts\*.txt` - Permanent transcript storage (optional)
 
 ## Azure OpenAI Model Configuration
 
@@ -496,6 +546,87 @@ Remove-Item -Recurse -Force .git
    - Not checking `$LASTEXITCODE` after running `llm cmdcomp` (WRONG - doesn't detect failures)
    - Using `2>$null` to hide errors (WRONG - makes debugging impossible)
 
+### Issue: Context command not found
+
+**Symptoms**:
+- Running `context` in PowerShell returns "command not found"
+- AI cannot retrieve terminal history
+
+**Solutions**:
+
+1. **Verify context.py is installed**:
+   ```powershell
+   Test-Path $env:USERPROFILE\.local\bin\context.py
+   Test-Path $env:USERPROFILE\.local\bin\context.bat
+   ```
+
+2. **Check PATH includes .local\bin**:
+   ```powershell
+   $env:PATH -split ';' | Select-String "\.local\\bin"
+   ```
+
+3. **Verify Python is available**:
+   ```powershell
+   python --version
+   ```
+
+4. **Manually test context script**:
+   ```powershell
+   python $env:USERPROFILE\.local\bin\context.py
+   ```
+
+5. **Reinstall context system**:
+   ```powershell
+   .\Install-LlmTools.ps1
+   ```
+
+### Issue: Context returns "No commands found"
+
+**Symptoms**:
+- `context` command runs but returns no results
+- Transcripts not being created
+
+**Solutions**:
+
+1. **Check if transcription started**:
+   ```powershell
+   $env:TRANSCRIPT_LOG_FILE
+   # Should show path to current transcript
+   ```
+
+2. **Verify transcript directory exists**:
+   ```powershell
+   $env:TRANSCRIPT_LOG_DIR
+   Test-Path $env:TRANSCRIPT_LOG_DIR
+   ```
+
+3. **Check transcript file exists**:
+   ```powershell
+   Test-Path $env:TRANSCRIPT_LOG_FILE
+   ```
+
+4. **Reload PowerShell profile**:
+   ```powershell
+   . $PROFILE
+   ```
+
+5. **Start a new PowerShell session** (transcription starts automatically)
+
+### Issue: Transcript encoding errors
+
+**Symptoms**:
+- Context command shows garbled text
+- Unicode characters not displayed correctly
+
+**Cause**: PowerShell uses UTF-16-LE encoding by default, but some systems may vary.
+
+**Solution**: The context parser auto-detects encoding (UTF-16-LE, then UTF-8 fallback). If issues persist, check transcript file encoding:
+
+```powershell
+# View raw transcript
+Get-Content $env:TRANSCRIPT_LOG_FILE -Encoding Unicode
+```
+
 ## Troubleshooting Command Reference
 
 ```powershell
@@ -504,6 +635,17 @@ Get-Command llm
 
 # Test command completion manually
 llm cmdcomp "list files"
+
+# Test context command
+context
+context 5
+
+# Check transcript environment variables
+$env:TRANSCRIPT_LOG_FILE
+$env:TRANSCRIPT_LOG_DIR
+
+# Verify context command exists
+Get-Command context
 
 # Check Azure configuration
 Get-Content $env:APPDATA\io.datasette.llm\extra-openai-models.yaml

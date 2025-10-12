@@ -78,6 +78,12 @@ def parse_transcript(text: str) -> List[str]:
     # Also remove other potential BOM artifacts
     text = text.lstrip('\x00\ufeff')
 
+    # Filter out lines from previous context command outputs
+    # This prevents nested #c# prefixes when context is invoked multiple times
+    lines = text.split('\n')
+    lines = [line for line in lines if not line.startswith('#c#')]
+    text = '\n'.join(lines)
+
     # Split on lines that are ONLY asterisks (20+)
     # Using MULTILINE flag to match at start/end of lines
     separator_pattern = r'^\*{20,}$'

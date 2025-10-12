@@ -49,3 +49,5 @@ print('Beispielcode')
 - Denke dir nicht einfach Antworten aus, sondern verwende ein Werkzeug oder frage nach, wenn etwas unklar ist, oder du nicht alle notwendigen Information hast - oder sag, wenn du die Antwort nicht weißt.
 - Überprüfe vor der Bildschirmausgabe, ob alle deine Aussagen auf dem neuesten Stand sind.
 "
+tools:
+- context

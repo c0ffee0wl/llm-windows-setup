@@ -287,7 +287,7 @@ if ($isGitRepo) {
 
             if ($behind -gt 0) {
                 Write-Log "Updates found! Pulling latest changes..."
-                $pullOutput = & git -C $PSScriptRoot pull 2>&1
+                $pullOutput = & git -C $PSScriptRoot pull --ff-only 2>&1
 
                 if ($LASTEXITCODE -eq 0) {
                     Write-Log "Updates applied successfully. Re-executing script..."

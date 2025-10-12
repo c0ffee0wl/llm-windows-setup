@@ -51,7 +51,36 @@ The script executes in 11 sequential phases:
 **Key features**:
 - **llm wrapper function** - Automatically applies `-t assistant` template to prompts while excluding management commands (models, keys, plugins, etc.)
 - **Ctrl+N keybinding** - AI command completion via `llm cmdcomp` using PSReadLine
+  - **Critical implementation detail**: Uses `[Console]::WriteLine()` to write to console (NOT `[Microsoft.PowerShell.PSConsoleReadLine]::Insert()` which writes to buffer)
+  - Clears buffer with `RevertLine()` BEFORE calling `llm cmdcomp` to allow interactive TTY session
+  - `llm cmdcomp` runs interactively via `prompt_toolkit`, showing UI on TTY and returning final command via stdout
+  - On success: inserts result and auto-executes with `AcceptLine()`
 - **Clipboard aliases** - `pbcopy`/`pbpaste` functions for macOS compatibility
+
+### Command Completion Architecture (`llm cmdcomp`)
+
+The `llm cmdcomp` plugin is a Python-based interactive program that:
+
+1. **Runs as an interactive TTY application** using `prompt_toolkit`
+2. **Workflow**:
+   - Takes user's partial command/natural language as input
+   - Detects environment (shell, OS, package managers) via `/opt/llm-cmd-comp/llm_cmd_comp/__init__.py`
+   - Calls LLM with system prompt containing environment context
+   - Shows suggested command: `$ <command>`
+   - Prompts for revisions: `> ` (loops until user presses Enter on empty input)
+   - **Only the final accepted command goes to stdout** via `print(command)`
+3. **Key characteristics**:
+   - Interactive UI appears on TTY (not captured in buffer)
+   - Return value via stdout is the final command string
+   - Exit code 0 = success, non-zero = failure/cancellation
+4. **Integration requirements**:
+   - Shell must not interfere with TTY while `llm cmdcomp` is running
+   - Shell captures stdout to get final command
+   - Shell inserts and executes the returned command
+
+**Reference implementations**:
+- Zsh: `/opt/llm-linux-setup/integration/llm-integration.zsh`
+- PowerShell: `/opt/llm-windows-setup/integration/llm-integration.ps1` (lines 138-171)
 
 ### Template Context System
 
@@ -64,29 +93,43 @@ The `assistant.yaml` template is Windows-specific with:
 
 ## Helper Functions (Refactored Architecture)
 
-The script uses 5 reusable helper functions to eliminate code duplication and follow the KISS principle:
+The script uses helper functions to eliminate code duplication and follow the KISS principle:
 
-1. **`Add-ToPath`** (line 101) - Centralized PATH management
+1. **`Add-ToPath`** (around line 101) - Centralized PATH management
    - Checks if path exists in `$env:Path`
    - Adds to front of PATH if missing
    - Used throughout script instead of inline conditionals
+   - Note: This only affects current session; permanent PATH changes are handled by tool installers
 
-2. **`Install-ChocoPackage`** (line 115) - Unified Chocolatey installation
+2. **`Refresh-EnvironmentPath`** (around line 89) - Reloads PATH from registry
+   - Combines Machine and User scope PATH variables
+   - Used after Chocolatey installations to pick up new tools
+   - Required because Chocolatey modifies registry but doesn't update current session
+
+3. **`Install-ChocoPackage`** (around line 115) - Unified Chocolatey installation
    - Checks if command/package already exists
    - Handles admin privilege requirements with clear messaging
    - Supports optional skip for non-critical packages
    - Auto-refreshes PATH after installation
+   - Parameters: `PackageName`, `CommandName`, `ManualUrl`, `AllowSkip`, `SkipCheck`
 
-3. **`Install-UvTool`** (line 176) - Unified uv tool installation/upgrade
+4. **`Install-UvTool`** (around line 171) - Unified uv tool installation/upgrade
    - Checks if tool is installed via `uv tool list`
    - Upgrades if exists, installs if new
    - Supports git-based packages with availability check
    - Consistent error handling without `$ErrorActionPreference` toggling
+   - Parameters: `ToolName`, `IsGitPackage`
 
-4. **`Install-NpmPackage`** (line 221) - Unified npm global installation
+5. **`Install-NpmPackage`** (around line 219) - Unified npm global installation
    - Installs via `npm install -g`
    - Consistent error handling
    - Returns success/failure for validation
+   - Parameters: `PackageName`
+
+Additional helper functions:
+- **`Test-Administrator`** - Checks if running with admin privileges
+- **`Test-CommandExists`** - Verifies if a command is available
+- **`Test-PythonAvailable`** - Checks if Python is actually working (not just Windows Store alias)
 
 ### Usage Examples
 
@@ -149,6 +192,59 @@ Integration file dynamically adds to PATH in this order:
 
 This ensures uv tools, pipx tools, and npm global packages are accessible.
 
+## Common Commands
+
+### Running the Installation Script
+
+```powershell
+# Initial installation (requires admin for Chocolatey)
+.\Install-LlmTools.ps1
+
+# Update all tools (can run as regular user if Chocolatey already installed)
+.\Install-LlmTools.ps1
+
+# Force Azure OpenAI configuration
+.\Install-LlmTools.ps1 -Azure
+```
+
+### Testing Individual Components
+
+```powershell
+# Test llm installation
+Get-Command llm
+llm "test query"
+
+# Test command completion manually
+llm cmdcomp "list files"
+
+# Test PowerShell integration (after loading profile)
+. $PROFILE
+
+# Verify PATH includes required directories
+$env:PATH -split ';' | Select-String "\.local\\bin"
+$env:PATH -split ';' | Select-String "npm"
+
+# Check installed llm plugins
+llm plugins
+
+# Verify Azure configuration
+Get-Content $env:APPDATA\io.datasette.llm\extra-openai-models.yaml
+llm keys get azure
+
+# Test PSReadLine module
+Get-Module PSReadLine
+```
+
+### Reloading Integration After Changes
+
+```powershell
+# Reload current PowerShell profile
+. $PROFILE
+
+# Or restart PowerShell session
+exit  # Then reopen PowerShell
+```
+
 ## Development Workflows
 
 ### Testing the Installation Script
@@ -192,6 +288,14 @@ When editing `integration/llm-integration.ps1`:
 - Use `$PSVersionTable.PSVersion` if version detection needed
 - Test keybindings: `Set-PSReadLineKeyHandler -Key Ctrl+n`
 
+**Critical rules for PSReadLine keybindings with external interactive programs**:
+- **NEVER** use `[Microsoft.PowerShell.PSConsoleReadLine]::Insert()` to write output messages - this modifies the command buffer
+- **DO** use `[Console]::WriteLine()` or `Write-Host` for console output
+- **DO** clear buffer with `RevertLine()` before running external interactive programs like `llm cmdcomp`
+- External programs using `prompt_toolkit` (like `llm cmdcomp`) need direct TTY access - buffer must be clean
+- Only use `Insert()` to add the final result to the command buffer
+- Use `AcceptLine()` to auto-execute the inserted command
+
 ### Self-Update Mechanism
 
 The core design uses a **self-updating script pattern** with safe execution:
@@ -205,7 +309,7 @@ The core design uses a **self-updating script pattern** with safe execution:
    - Prompts user to convert directory to git repository (default: Yes)
    - Performs: `git init`, `git remote add origin`, `git fetch origin`
    - Auto-detects default branch (tries `main` first, fallback to `master`)
-   - Checks out branch and sets up tracking: `git checkout -b <branch> origin/<branch>`
+   - Checks out branch and sets up tracking: `git checkout -f -B <branch> origin/<branch>`
    - Future runs will use normal git pull auto-update mechanism
 3. This prevents the script from executing with partially-updated code mid-run and avoids infinite loops when local commits exist
 
@@ -345,6 +449,53 @@ Remove-Item -Recurse -Force .git
 .\Install-LlmTools.ps1
 ```
 
+## Troubleshooting
+
+### Issue: Ctrl+N command completion not working or behaving incorrectly
+
+**Symptoms**:
+- Pressing Ctrl+N does nothing
+- Ctrl+N corrupts the command line
+- Interactive UI doesn't appear
+- Command doesn't auto-execute
+
+**Solutions**:
+
+1. **Reload PowerShell profile**:
+   ```powershell
+   . $PROFILE
+   ```
+
+2. **Verify PSReadLine is loaded**:
+   ```powershell
+   Get-Module PSReadLine
+   # If not loaded, import it:
+   Import-Module PSReadLine
+   ```
+
+3. **Test llm cmdcomp manually**:
+   ```powershell
+   llm cmdcomp "list files"
+   # Should show interactive UI with `$` prompt and `>` for revisions
+   ```
+
+4. **Check keybinding is registered**:
+   ```powershell
+   # View all PSReadLine keybindings
+   Get-PSReadLineKeyHandler | Select-String "Ctrl\+n"
+   ```
+
+5. **Verify integration file exists**:
+   ```powershell
+   Test-Path "$PSScriptRoot\integration\llm-integration.ps1"
+   ```
+
+6. **Common implementation bugs** (for developers):
+   - Using `[Microsoft.PowerShell.PSConsoleReadLine]::Insert()` for console output (WRONG - corrupts buffer)
+   - Not clearing buffer with `RevertLine()` before calling `llm cmdcomp` (WRONG - interferes with TTY)
+   - Not checking `$LASTEXITCODE` after running `llm cmdcomp` (WRONG - doesn't detect failures)
+   - Using `2>$null` to hide errors (WRONG - makes debugging impossible)
+
 ## Troubleshooting Command Reference
 
 ```powershell
@@ -365,5 +516,8 @@ llm keys get azure
 
 # Check PSReadLine module
 Get-Module PSReadLine
+
+# View PSReadLine keybindings
+Get-PSReadLineKeyHandler
 ```
 

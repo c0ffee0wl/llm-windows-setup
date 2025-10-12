@@ -146,26 +146,26 @@ if (Get-Module -ListAvailable -Name PSReadLine) {
             return
         }
 
-        # Show a newline for cleaner output
-        [Microsoft.PowerShell.PSConsoleReadLine]::Insert("`n")
+        # Clear the current line from the buffer before running llm cmdcomp
+        [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
+
+        # Write a newline to the console (not the buffer) for cleaner output
+        [Console]::WriteLine()
 
         try {
-            # Call llm cmdcomp to get the completion
-            $completion = & (Get-Command -Name llm -CommandType Application) cmdcomp $line 2>$null
+            # Call llm cmdcomp - it will run interactively on TTY
+            # The interactive UI (prompts, revisions) appears on the terminal
+            # Only the final accepted command is returned via stdout
+            $result = & (Get-Command -Name llm -CommandType Application) cmdcomp $line
 
-            if ($completion -and $completion -ne $line) {
-                # Replace the current line with the completion
-                [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
-                [Microsoft.PowerShell.PSConsoleReadLine]::Insert($completion)
-            } else {
-                # Restore original line if completion failed or returned same
-                [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
-                [Microsoft.PowerShell.PSConsoleReadLine]::Insert($line)
+            # If successful and non-empty, insert result and execute immediately
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($result)) {
+                [Microsoft.PowerShell.PSConsoleReadLine]::Insert($result)
+                [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
             }
+            # If no valid result, buffer remains empty (cleared above)
         } catch {
-            # On error, restore original line
-            [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
-            [Microsoft.PowerShell.PSConsoleReadLine]::Insert($line)
+            # On exception, show error and leave buffer empty
             Write-Host "Command completion failed: $_" -ForegroundColor Red
         }
     }

@@ -595,9 +595,6 @@ Write-Host ""
 # Phase 4: Install LLM Core
 # ============================================================================
 
-Write-Log "Installing/updating llm..."
-Write-Host ""
-
 # Install llm via uv
 if (-not (Install-UvTool -ToolName "llm")) {
     Write-ErrorLog "Failed to install/upgrade llm"

@@ -141,6 +141,10 @@ Set-Alias pbpaste Get-Clipboard
 if (Get-Module -ListAvailable -Name PSReadLine) {
     Import-Module PSReadLine -ErrorAction SilentlyContinue
 
+    # Capture llm executable path in local variable for ScriptBlock closure
+    # (ScriptBlock can't access $script: scope variables directly)
+    $llmExePath = $script:LlmExecutable
+
     # Bind Ctrl+N to LLM command completion
     Set-PSReadLineKeyHandler -Key Ctrl+n -ScriptBlock {
         # Get the current command line
@@ -160,26 +164,22 @@ if (Get-Module -ListAvailable -Name PSReadLine) {
         [Console]::WriteLine()
 
         try {
-            # Call llm cmdcomp - it will run interactively on TTY
-            # The interactive UI (prompts, revisions) appears on the terminal
-            # Only the final accepted command is returned via stdout
-            $result = & $script:LlmExecutable cmdcomp $line
+            # Call llm cmdcomp - interactive UI appears on stderr (console)
+            # Only capture stdout (the final command), let stderr go to console
+            # This matches the Zsh implementation behavior
+            $result = & $llmExePath "cmdcomp" "$line"
             $exitCode = $LASTEXITCODE
 
-            # Check for success
-            if ($exitCode -eq 0) {
-                if (-not [string]::IsNullOrWhiteSpace($result)) {
-                    # Success with result - insert and execute
-                    [Microsoft.PowerShell.PSConsoleReadLine]::Insert($result)
-                    [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
-                } else {
-                    # Success but empty result (user cancelled or no suggestion)
-                    [Console]::WriteLine("Command completion returned empty result")
-                }
-            } else {
-                # Non-zero exit code
-                [Console]::WriteLine("Command completion failed with exit code: $exitCode")
+            # Check for success and non-empty result
+            if ($exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($result)) {
+                # Success - insert command and execute
+                [Microsoft.PowerShell.PSConsoleReadLine]::Insert($result)
+                [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+            } elseif ($exitCode -ne 0) {
+                # Command failed
+                [Console]::WriteLine("Command completion failed (exit code: $exitCode)")
             }
+            # If empty result (user cancelled), do nothing
         } catch {
             # Exception during execution
             [Console]::WriteLine("Command completion error: $_")

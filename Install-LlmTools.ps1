@@ -417,7 +417,7 @@ if ($needsGitInit -and (Test-CommandExists "git")) {
 	
     if ([string]::IsNullOrEmpty($convertToGit) -or $convertToGit -eq 'Y' -or $convertToGit -eq 'y') {
 		Write-Log "Converting directory to git repository..."
-		
+
         # Repository configuration
         $repoUrl = "https://github.com/c0ffee0wl/llm-windows-setup.git"
 
@@ -435,13 +435,25 @@ if ($needsGitInit -and (Test-CommandExists "git")) {
                 throw "git init failed"
             }
 
-            # Add remote
-            Write-Log "Adding remote origin: $repoUrl"
-            & git -C $PSScriptRoot remote add origin $repoUrl 2>&1 | Out-Null
+            # Add or update remote (handle case where remote already exists from previous attempt)
+            Write-Log "Configuring remote origin: $repoUrl"
+            $existingRemote = & git -C $PSScriptRoot remote get-url origin 2>&1
 
             if ($LASTEXITCODE -ne 0) {
-                Write-ErrorLog "Failed to add remote origin"
-                throw "git remote add failed"
+                # Remote doesn't exist, add it
+                & git -C $PSScriptRoot remote add origin $repoUrl 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    Write-ErrorLog "Failed to add remote origin"
+                    throw "git remote add failed"
+                }
+            } else {
+                # Remote exists, update it to ensure correct URL
+                Write-Log "Remote origin already exists, updating URL..."
+                & git -C $PSScriptRoot remote set-url origin $repoUrl 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    Write-ErrorLog "Failed to update remote origin"
+                    throw "git remote set-url failed"
+                }
             }
 
             # Fetch from remote
@@ -458,12 +470,14 @@ if ($needsGitInit -and (Test-CommandExists "git")) {
             Write-Log "Detecting default branch..."
             $defaultBranch = $null
 
-            & git -C $PSScriptRoot ls-remote --heads origin main 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
+            # Check if 'main' branch exists by checking output content
+            $mainBranchCheck = & git -C $PSScriptRoot ls-remote --heads origin main 2>&1
+            if ($mainBranchCheck -match "refs/heads/main") {
                 $defaultBranch = "main"
             } else {
-                & git -C $PSScriptRoot ls-remote --heads origin master 2>&1 | Out-Null
-                if ($LASTEXITCODE -eq 0) {
+                # Try 'master' branch
+                $masterBranchCheck = & git -C $PSScriptRoot ls-remote --heads origin master 2>&1
+                if ($masterBranchCheck -match "refs/heads/master") {
                     $defaultBranch = "master"
                 }
             }
@@ -475,9 +489,10 @@ if ($needsGitInit -and (Test-CommandExists "git")) {
 
             Write-Log "Using branch: $defaultBranch"
 
-            # Checkout branch
+            # Checkout branch (force to overwrite ZIP-extracted files)
             Write-Log "Checking out branch $defaultBranch..."
-            & git -C $PSScriptRoot checkout -b $defaultBranch "origin/$defaultBranch" 2>&1 | Out-Null
+            # Use -f to force overwrite existing files, -B to create or reset branch
+            & git -C $PSScriptRoot checkout -f -B $defaultBranch "origin/$defaultBranch" 2>&1 | Out-Null
 
             if ($LASTEXITCODE -ne 0) {
                 Write-ErrorLog "Failed to checkout branch"

@@ -116,8 +116,14 @@ function llm {
 
     # Handle 'chat' subcommand specially
     if ($args.Count -gt 0 -and $args[0] -eq "chat") {
-        $chatArgs = $args[1..($args.Count - 1)]
-        & $script:LlmExecutable chat -t assistant @chatArgs
+        if ($args.Count -eq 1) {
+            # No arguments after 'chat' - avoid problematic array slicing
+            & $script:LlmExecutable chat -t assistant
+        } else {
+            # Arguments after 'chat' - safe to slice array
+            $chatArgs = $args[1..($args.Count - 1)]
+            & $script:LlmExecutable chat -t assistant @chatArgs
+        }
         return
     }
 

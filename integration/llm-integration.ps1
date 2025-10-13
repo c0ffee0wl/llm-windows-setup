@@ -222,7 +222,6 @@ if ($Host.Name -eq "ConsoleHost" -and -not $Host.PrivateData.PSObject.Properties
 
         # Show session log info (unless TRANSCRIPT_LOG_SILENT is set)
         if ($env:TRANSCRIPT_LOG_SILENT -ne "true" -and $env:TRANSCRIPT_LOG_SILENT -ne "1") {
-            Write-Host ""
             Write-Host "Session logged for 'context' command. To query this session from another terminal:" -ForegroundColor Cyan
             Write-Host "`$env:TRANSCRIPT_LOG_FILE = '$transcriptFile'" -ForegroundColor Gray
             Write-Host ""
@@ -239,4 +238,4 @@ if ($Host.Name -eq "ConsoleHost" -and -not $Host.PrivateData.PSObject.Properties
 # ============================================================================
 
 # Uncomment to show a message when the integration is loaded
-Write-Host "LLM Tools Integration loaded. Press Ctrl+N for AI command completion." -ForegroundColor Green
+# Write-Host "LLM Tools Integration loaded. Press Ctrl+N for AI command completion." -ForegroundColor Cyan

@@ -627,6 +627,37 @@ Remove-Item -Recurse -Force .git
 Get-Content $env:TRANSCRIPT_LOG_FILE -Encoding Unicode
 ```
 
+### Issue: Native command output not captured in transcripts
+
+**Symptoms**:
+- Commands like `ping`, `ipconfig`, `tracert`, or `git` execute successfully
+- Output appears in console but is missing from transcript file
+- `context` command shows the command was run but returns no output
+- May see `TerminatingError(): "Die Pipeline wurde beendet."` when pressing Ctrl+C
+
+**Cause**: This is a **known PowerShell limitation**, not a bug in our code. PowerShell's `Start-Transcript` cmdlet does not capture output from native console applications (executables) that write directly to the console buffer. PowerShell doesn't redirect their output handles, so the transcription framework cannot capture them.
+
+**Official Microsoft documentation**:
+- [Workaround for Start-Transcript on native processes](https://devblogs.microsoft.com/powershell/workaround-for-start-transcript-on-native-processes/)
+- [GitHub Issue #10994: Start/Stop-Transcript does not capture everything](https://github.com/PowerShell/PowerShell/issues/10994)
+
+**Workaround**: Pipe native commands through `Out-Default` to force PowerShell to intercept their output:
+
+```powershell
+# Without workaround - output NOT captured
+ping heise.de
+
+# With workaround - output IS captured
+ping heise.de | Out-Default
+
+# Other examples
+ipconfig /all | Out-Default
+tracert google.com | Out-Default
+git status | Out-Default
+```
+
+**Note about TerminatingError**: When you press Ctrl+C to interrupt a command, PowerShell writes a `TerminatingError(): "Die Pipeline wurde beendet."` message to the transcript. This is normal PowerShell behavior and is automatically filtered out by the `context` parser.
+
 ## Troubleshooting Command Reference
 
 ```powershell

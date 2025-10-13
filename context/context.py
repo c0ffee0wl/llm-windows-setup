@@ -107,6 +107,18 @@ def parse_transcript(text: str) -> List[str]:
         if not prompt_pattern.search(block):
             continue
 
+        # Skip error-only blocks (e.g., Ctrl+C interruptions)
+        # These blocks look like:
+        # PS C:\path> TerminatingError(): "Die Pipeline wurde beendet."
+        # >> TerminatingError(): "Die Pipeline wurde beendet."
+        # Extract the content after the PS prompt
+        prompt_match = prompt_pattern.search(block)
+        if prompt_match:
+            content_after_prompt = block[prompt_match.end():].strip()
+            # Check if this is just an error message, not a real command
+            if content_after_prompt.startswith('TerminatingError('):
+                continue
+
         # This is a command block - keep it
         command_blocks.append(block)
 

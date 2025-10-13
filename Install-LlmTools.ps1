@@ -962,7 +962,6 @@ if (-not (Test-PythonAvailable)) {
     if (-not (Test-Path $transcriptConfigMarker)) {
         Write-Log "Configuring PowerShell session history storage..."
         Write-Host ""
-        Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
         Write-Host "PowerShell sessions are logged for AI context retrieval." -ForegroundColor Cyan
         Write-Host "Choose storage location:" -ForegroundColor Cyan
         Write-Host ""

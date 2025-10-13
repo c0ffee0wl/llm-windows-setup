@@ -1,6 +1,8 @@
 import llm
 import subprocess
 import sys
+import os
+from pathlib import Path
 
 
 def context(input: str) -> str:
@@ -14,7 +16,17 @@ def context(input: str) -> str:
         Session history from PowerShell transcripts, including commands and outputs.
         Each line of the history is prefixed with #c#
     """
-    args = ["context"]
+    # Find context.py in standard location
+    # On Windows, subprocess.run(["context"]) fails because it can't find .bat files
+    # So we call Python directly with the full path to context.py
+    user_home = os.path.expanduser("~")
+    context_script = Path(user_home) / ".local" / "bin" / "context.py"
+
+    if not context_script.exists():
+        return f"Error: context.py not found at {context_script}"
+
+    # Call Python directly with context.py (bypasses .bat wrapper issue on Windows)
+    args = [sys.executable, str(context_script)]
 
     # Validate and sanitize input to prevent shell injection
     if input and input.strip():
@@ -29,13 +41,12 @@ def context(input: str) -> str:
             return f"Error: Invalid input '{input_clean}'. Must be 'all', '-a', '--all', or a positive integer."
 
     try:
-        # On Windows, context.py should be in PATH or .local\bin
         result = subprocess.run(args, capture_output=True, text=True, check=True)
         return result.stdout
     except subprocess.CalledProcessError as e:
         return f"Error running context command: {e.stderr}"
-    except FileNotFoundError:
-        return "Error: 'context' command not found in PATH. Ensure context.py is installed."
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 
 @llm.hookimpl

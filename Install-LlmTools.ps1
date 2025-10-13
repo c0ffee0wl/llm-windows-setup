@@ -1033,9 +1033,9 @@ if (-not (Test-PythonAvailable)) {
 
     if (Test-Path $contextPluginPath) {
         try {
-            & $llmExe install $contextPluginPath --upgrade
+            & $llmExe install $contextPluginPath --upgrade --no-cache-dir
             if ($LASTEXITCODE -ne 0) {
-                & $llmExe install $contextPluginPath
+                & $llmExe install $contextPluginPath --no-cache-dir
             }
             Write-Log "llm-tools-context plugin installed successfully"
         } catch {

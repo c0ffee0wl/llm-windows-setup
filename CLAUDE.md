@@ -499,6 +499,39 @@ Remove-Item -Recurse -Force .git
 .\Install-LlmTools.ps1
 ```
 
+### Issue: llm-tools-context installation fails with permission error
+
+**Symptoms**:
+- Installation succeeds when run with admin rights
+- Subsequent non-admin runs fail during llm-tools-context installation
+- Error: `Permission denied: 'c:\users\...\appdata\local\pip\cache\wheels\...'`
+- Context command and AI context retrieval stop working
+
+**Cause**: The pip cache directory at `%LOCALAPPDATA%\pip\cache` was created with admin permissions during the first run. Non-admin runs cannot write to this cache directory when building the llm-tools-context wheel.
+
+**Solution**: This issue is fixed in the latest version of the installation script. Update via:
+
+```powershell
+git pull
+.\Install-LlmTools.ps1
+```
+
+**Manual workarounds** (if you can't update the script):
+
+Option 1: Clear the pip cache directory
+```powershell
+Remove-Item -Recurse -Force $env:LOCALAPPDATA\pip\cache
+.\Install-LlmTools.ps1
+```
+
+Option 2: Fix cache permissions
+```powershell
+icacls "$env:LOCALAPPDATA\pip\cache" /grant "${env:USERNAME}:(OI)(CI)F" /T
+.\Install-LlmTools.ps1
+```
+
+**Prevention**: The updated installation script uses the `--no-cache-dir` flag to bypass pip cache entirely for local package installations, preventing permission conflicts between admin and non-admin runs.
+
 ## Troubleshooting
 
 ### Issue: Ctrl+N command completion not working or behaving incorrectly

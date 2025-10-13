@@ -46,7 +46,13 @@ Add-ToPathIfExists (Join-Path $env:USERPROFILE ".npm-global")
 # ============================================================================
 
 # Store the full path to llm.exe to avoid command resolution issues inside the llm wrapper function
-$script:LlmExecutable = (Get-Command -Name llm -CommandType Application -ErrorAction Stop).Source
+# Use try/catch to handle cases where llm isn't installed yet or not in PATH
+try {
+    $script:LlmExecutable = (Get-Command -Name llm -CommandType Application -ErrorAction Stop).Source
+} catch {
+    # llm not found as application - fallback to direct command (will work once llm is in PATH)
+    $script:LlmExecutable = "llm"
+}
 
 # ============================================================================
 # Custom llm Wrapper Function

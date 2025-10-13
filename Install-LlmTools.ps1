@@ -627,6 +627,16 @@ if (-not (Install-UvTool -ToolName "llm")) {
 $uvToolsPath = Join-Path $env:USERPROFILE ".local\bin"
 Add-ToPath $uvToolsPath
 
+# Resolve llm.exe path to avoid conflicts with PowerShell function wrapper
+# When profile is loaded, 'llm' refers to the function, not the executable
+# Using the full path ensures we call the actual llm.exe binary throughout the script
+try {
+    $llmExe = (Get-Command -Name llm -CommandType Application -ErrorAction Stop).Source
+} catch {
+    Write-ErrorLog "Could not find llm executable after installation"
+    exit 1
+}
+
 Write-Host ""
 
 # ============================================================================
@@ -687,7 +697,7 @@ if ($shouldPromptForConfig) {
         $azureApiBase = Read-Host "Enter your Azure Foundry resource URL (e.g. https://YOUR-RESOURCE.openai.azure.com/openai/v1/)"
 
         # Set Azure API key
-        & llm keys set azure
+        & $llmExe keys set azure
 
         $azureConfigured = $true
     } else {
@@ -758,7 +768,7 @@ if ($azureConfigured) {
     $defaultModelFile = Join-Path $llmConfigDir "default_model.txt"
     if (-not (Test-Path $defaultModelFile)) {
         Write-Log "Setting default model to azure/gpt-5-mini..."
-        & llm models default azure/gpt-5-mini
+        & $llmExe models default azure/gpt-5-mini
     } else {
         Write-Log "Default model already configured, skipping..."
     }
@@ -772,6 +782,9 @@ Write-Host ""
 
 Write-Log "Installing/updating llm plugins..."
 Write-Host ""
+
+# Note: $llmExe variable is already resolved in Phase 4 after llm installation
+# This ensures we always call the actual llm.exe binary, not the PowerShell function wrapper
 
 # Regular plugins
 $plugins = @(
@@ -797,9 +810,9 @@ foreach ($plugin in $plugins) {
     Write-Log "Installing/updating $plugin..."
     try {
         # Try upgrade first, if it fails, try install
-        & llm install $plugin --upgrade
+        & $llmExe install $plugin --upgrade
         if ($LASTEXITCODE -ne 0) {
-            & llm install $plugin
+            & $llmExe install $plugin
         }
     } catch {
         Write-WarningLog "Failed to install $plugin : $_"
@@ -816,9 +829,9 @@ foreach ($plugin in $gitPlugins) {
             continue
         }
 
-        & llm install $plugin --upgrade
+        & $llmExe install $plugin --upgrade
         if ($LASTEXITCODE -ne 0) {
-            & llm install $plugin
+            & $llmExe install $plugin
             Write-WarningLog "Failed to install $plugin"
             Write-WarningLog "This is optional and can be installed manually later with: llm install $plugin"
         }
@@ -838,7 +851,7 @@ Write-Log "Installing/updating llm templates..."
 Write-Host ""
 
 # Get templates directory
-$templatesDir = & llm logs path | Split-Path | Join-Path -ChildPath "templates"
+$templatesDir = & $llmExe logs path | Split-Path | Join-Path -ChildPath "templates"
 
 # Create templates directory if it doesn't exist
 New-Item -ItemType Directory -Path $templatesDir -Force | Out-Null
@@ -1020,9 +1033,9 @@ if (-not (Test-PythonAvailable)) {
 
     if (Test-Path $contextPluginPath) {
         try {
-            & llm install $contextPluginPath --upgrade
+            & $llmExe install $contextPluginPath --upgrade
             if ($LASTEXITCODE -ne 0) {
-                & llm install $contextPluginPath
+                & $llmExe install $contextPluginPath
             }
             Write-Log "llm-tools-context plugin installed successfully"
         } catch {

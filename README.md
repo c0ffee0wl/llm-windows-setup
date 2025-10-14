@@ -42,7 +42,6 @@ Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) pro
 - **assistant.yaml** - Custom assistant template with security/IT expertise configuration
 
 ### Additional Tools
-- **repomix** - Repository packager for AI consumption
 - **gitingest** - Convert Git repositories to LLM-friendly text
 - **files-to-prompt** - File content formatter for LLM prompts
 - **Claude Code** - Anthropic's agentic coding CLI
@@ -111,7 +110,7 @@ The script will automatically:
 2. Pull latest changes and re-execute if updates are found
 3. Update llm and all plugins
 4. Update custom templates (assistant.yaml)
-5. Update repomix, gitingest, files-to-prompt, Claude Code, and OpenCode
+5. Update gitingest, files-to-prompt, Claude Code, and OpenCode
 6. Refresh PowerShell integration files
 
 **Note**: Updates do not require Administrator privileges (unless you need to update Chocolatey packages). The git pull happens automatically during Phase 0.
@@ -161,9 +160,6 @@ The following models are configured (if you set up Azure OpenAI):
 ### Additional Tools
 
 ```powershell
-# Package repository for AI analysis
-repomix
-
 # Convert Git repositories to LLM-friendly text
 gitingest https://github.com/user/repo
 gitingest C:\path\to\local\repo
@@ -318,7 +314,6 @@ llm-windows-setup/
 - [LLM Documentation](https://llm.datasette.io/)
 - [LLM Plugins Directory](https://llm.datasette.io/en/stable/plugins/directory.html)
 - [Pedantic Journal - LLM Guide](https://pedanticjournal.com/llm/)
-- [Repomix Documentation](https://github.com/yamadashy/repomix)
 - [Gitingest Documentation](https://github.com/coderamp-labs/gitingest)
 - [Files-to-Prompt](https://github.com/danmackinlay/files-to-prompt)
 - [Claude Code Documentation](https://docs.anthropic.com/claude/docs/claude-code)
@@ -346,7 +341,6 @@ This Windows version differs from the [Linux version](https://github.com/c0ffee0
 
 This installation script is provided as-is under the MIT License. Individual tools have their own licenses:
 - llm: Apache 2.0
-- Repomix: MIT
 - See individual tool repositories for details
 
 ## Contributing
@@ -361,7 +355,6 @@ To modify or extend this installation:
 ## Credits
 
 - [Simon Willison](https://github.com/simonw) - llm CLI tool
-- [Repomix Team](https://github.com/yamadashy/repomix) - Repository packaging
 - [Dan Mackinlay](https://github.com/danmackinlay) - files-to-prompt fork
 - [Damon McMinn](https://github.com/damonmcminn) - llm-templates-fabric fork
 - [c0ffee0wl](https://github.com/c0ffee0wl) - Original llm-linux-setup project

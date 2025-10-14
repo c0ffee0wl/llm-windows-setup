@@ -1119,9 +1119,6 @@ if (-not (Test-Administrator)) {
 # Refresh PATH to ensure npm and node are accessible
 Refresh-EnvironmentPath
 
-# Install npm packages
-Install-NpmPackage -PackageName "repomix"
-
 # Install uv tools
 Install-UvTool -ToolName "gitingest"
 Install-UvTool -ToolName "git+https://github.com/c0ffee0wl/files-to-prompt" -IsGitPackage $true
@@ -1149,7 +1146,6 @@ Write-Host ""
 Write-Log "Installed tools:"
 Write-Log "  - llm (Simon Willison's CLI tool)"
 Write-Log "  - llm plugins (gemini, anthropic, tools, fragments, jq, fabric templates, context)"
-Write-Log "  - repomix (repository packager)"
 Write-Log "  - gitingest (Git repository to LLM-friendly text)"
 Write-Log "  - files-to-prompt (file content formatter)"
 Write-Log "  - context (PowerShell history extraction for AI)"

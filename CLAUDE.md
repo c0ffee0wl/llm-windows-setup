@@ -39,7 +39,7 @@ The script executes in 11 sequential phases:
 5. **Azure OpenAI Config** - Interactive setup (optional, first-run detection)
 6. **LLM Templates** - Copy assistant.yaml with smart update detection
 7. **PowerShell Integration** - Add sourcing to PS5 and PS7 profiles
-8. **Additional Tools** - Install repomix, gitingest, files-to-prompt, Claude Code, OpenCode using helper functions
+8. **Additional Tools** - Install gitingest, files-to-prompt, Claude Code, OpenCode using helper functions
 
 ### PowerShell Integration Architecture
 
@@ -174,9 +174,6 @@ Install-ChocoPackage -PackageName "git" -CommandName "git" -ManualUrl "https://g
 # UV tool installation
 Install-UvTool -ToolName "llm"
 Install-UvTool -ToolName "git+https://github.com/user/repo" -IsGitPackage $true
-
-# npm package installation
-Install-NpmPackage -PackageName "repomix"
 
 # PATH management
 Add-ToPath "$env:USERPROFILE\.local\bin"

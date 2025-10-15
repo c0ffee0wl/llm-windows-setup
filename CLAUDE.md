@@ -12,7 +12,9 @@ This is a Windows PowerShell-based installation script for Simon Willison's `llm
 
 1. **Install-LlmTools.ps1** - Main installer with 10 phases (including Phase 2.5 for ZIP-to-Git conversion)
 2. **integration/llm-integration.ps1** - Unified PowerShell integration (PS5 & PS7)
-3. **llm-template/assistant.yaml** - Custom LLM template for security/IT context
+3. **llm-template/** - Custom LLM templates
+   - **assistant.yaml** - German-language assistant with security/IT expertise
+   - **code.yaml** - Code-only output template for piping to files
 
 ### Smart Admin Privilege Handling
 
@@ -50,6 +52,8 @@ The script executes in 11 sequential phases:
 
 **Key features**:
 - **llm wrapper function** - Automatically applies `-t assistant` template to prompts while excluding management commands (models, keys, plugins, etc.)
+  - **chat subcommand**: `llm chat "topic"` → `llm chat -t assistant "topic"`
+  - **code subcommand**: `llm code "prompt"` → `llm -t code "prompt"` (outputs raw code without markdown)
 - **Ctrl+N keybinding** - AI command completion via `llm cmdcomp` using PSReadLine
   - **Critical implementation detail**: Uses `[Console]::WriteLine()` to write to console (NOT `[Microsoft.PowerShell.PSConsoleReadLine]::Insert()` which writes to buffer)
   - Clears buffer with `RevertLine()` BEFORE calling `llm cmdcomp` to allow interactive TTY session
@@ -160,6 +164,12 @@ The script uses helper functions to eliminate code duplication and follow the KI
    - Returns success/failure for validation
    - Parameters: `PackageName`
 
+6. **`Install-LlmTemplate`** (around line 243) - Unified llm template installation
+   - Installs or updates templates with smart update detection
+   - Compares file hashes to detect changes
+   - Prompts user if template differs from installed version
+   - Parameters: `TemplateName`, `TemplatesDir`
+
 Additional helper functions:
 - **`Test-Administrator`** - Checks if running with admin privileges
 - **`Test-CommandExists`** - Verifies if a command is available
@@ -177,6 +187,10 @@ Install-UvTool -ToolName "git+https://github.com/user/repo" -IsGitPackage $true
 
 # PATH management
 Add-ToPath "$env:USERPROFILE\.local\bin"
+
+# Template installation (Phase 7)
+Install-LlmTemplate -TemplateName "assistant" -TemplatesDir $templatesDir
+Install-LlmTemplate -TemplateName "code" -TemplatesDir $templatesDir
 ```
 
 ## Key Design Patterns
@@ -213,6 +227,7 @@ The llm wrapper function intelligently decides when to apply the assistant templ
 2. **Apply template for**:
    - Direct prompts: `llm "question"`
    - Chat sessions: `llm chat "topic"` → `llm chat -t assistant "topic"`
+   - Code generation: `llm code "prompt"` → `llm -t code "prompt"`
 
 ### PATH Management Strategy
 
@@ -244,6 +259,10 @@ This ensures uv tools, pipx tools, and npm global packages are accessible.
 # Test llm installation
 Get-Command llm
 llm "test query"
+
+# Test code generation
+llm code "python hello world"
+llm code "powershell function to list files" > list.ps1
 
 # Test command completion manually
 llm cmdcomp "list files"
@@ -300,9 +319,22 @@ exit  # Then reopen PowerShell
 # Run as regular user after Chocolatey is installed
 ```
 
+### Adding New LLM Templates
+
+Add to Phase 7 (around line 913) using the `Install-LlmTemplate` helper:
+
+```powershell
+# Install templates using helper function
+Install-LlmTemplate -TemplateName "assistant" -TemplatesDir $templatesDir
+Install-LlmTemplate -TemplateName "code" -TemplatesDir $templatesDir
+Install-LlmTemplate -TemplateName "your-new-template" -TemplatesDir $templatesDir  # Add here
+```
+
+Then create `llm-template/your-new-template.yaml` in the repository.
+
 ### Adding New LLM Plugins
 
-Add to the appropriate array in Phase 6 (around line 652):
+Add to the appropriate array in Phase 6 (around line 843):
 
 ```powershell
 # For regular plugins
@@ -368,14 +400,15 @@ The core design uses a **self-updating script pattern** with safe execution:
 - **Admin elevation**: Chocolatey packages require admin, everything else is user-scoped
 - **npm call**: Don't start npm with `&` operator - it's a Batch/cmd file that causes error messages on Windows
 - **ASCII encoding**: When writing configuration files for Python tools (like extra-openai-models.yaml), use ASCII encoding. UTF-8 in PowerShell 5 creates a BOM that can trip up Python parsers
-- **Helper functions**: Use the 5 provided helper functions (`Install-ChocoPackage`, `Install-UvTool`, `Install-NpmPackage`, `Add-ToPath`) instead of inline installation logic to maintain consistency and reduce duplication
+- **Helper functions**: Use the 6 provided helper functions (`Install-ChocoPackage`, `Install-UvTool`, `Install-NpmPackage`, `Install-LlmTemplate`, `Add-ToPath`, `Refresh-EnvironmentPath`) instead of inline installation logic to maintain consistency and reduce duplication
 
 ## File Locations
 
 ### Installation Script Creates
 
 - `%APPDATA%\io.datasette.llm\extra-openai-models.yaml` - Azure OpenAI model config
-- `%APPDATA%\io.datasette.llm\templates\assistant.yaml` - LLM template
+- `%APPDATA%\io.datasette.llm\templates\assistant.yaml` - LLM assistant template
+- `%APPDATA%\io.datasette.llm\templates\code.yaml` - LLM code-only template
 - `%APPDATA%\io.datasette.llm\.transcript-configured` - Transcript storage configuration marker
 - `%USERPROFILE%\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` - PS5 profile
 - `%USERPROFILE%\Documents\PowerShell\Microsoft.PowerShell_profile.ps1` - PS7 profile

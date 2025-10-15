@@ -39,9 +39,12 @@ The script executes in 11 sequential phases:
 3. **Python Tools** - Install pipx, uv (user-scoped via `--user`)
 4. **LLM Core** - Install `llm` via `Install-UvTool` helper function
 5. **Azure OpenAI Config** - Interactive setup (optional, first-run detection)
-6. **LLM Templates** - Copy assistant.yaml with smart update detection
-7. **PowerShell Integration** - Add sourcing to PS5 and PS7 profiles
-8. **Additional Tools** - Install gitingest, files-to-prompt, Claude Code, OpenCode using helper functions
+6. **LLM Plugins** - Install llm plugins (regular and git-based)
+7. **LLM Templates** - Copy assistant.yaml and code.yaml with smart update detection
+8. **PowerShell Integration** - Add sourcing to PS5 and PS7 profiles
+7.5. **Context System Setup** - Install context command and llm-tools-context plugin, configure transcript storage
+9. **Additional Tools** - Install gitingest, files-to-prompt, Claude Code, OpenCode using helper functions
+10. **Configure Git Hooks** - Set `core.hooksPath` to use tracked hooks/ directory for automatic README TOC updates
 
 ### PowerShell Integration Architecture
 
@@ -391,6 +394,52 @@ The core design uses a **self-updating script pattern** with safe execution:
 3. Enable auto-updates for all future runs
 
 **When modifying `Install-LlmTools.ps1`**: The self-update logic in Phase 0 must ALWAYS run before any other operations. Never move or remove this section.
+
+### README Table of Contents (TOC) System
+
+The README.md file uses automatically generated Table of Contents via [doctoc](https://github.com/thlorenz/doctoc) and git hooks.
+
+**Architecture**:
+1. **TOC Markers** in README.md:
+   ```markdown
+   <!-- START doctoc generated TOC please keep comment here to allow auto update -->
+   <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+   <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+   ```
+
+2. **Git Pre-commit Hook** (`hooks/pre-commit`):
+   - Bash script that runs automatically when committing README.md
+   - Detects if README.md is being committed
+   - Runs `doctoc README.md --github` to regenerate TOC
+   - Re-adds updated README.md to the commit
+   - Requires Git Bash (installed with Git for Windows)
+
+3. **Git Hooks Configuration** (Phase 10):
+   - Script runs: `git config core.hooksPath hooks`
+   - Points git to use `hooks/` directory (tracked in version control)
+   - All developers automatically get the hook when they clone/pull
+
+**Important Notes**:
+- **doctoc is NOT installed on Windows** - the git hook runs via Git Bash (comes with Git for Windows)
+- The hook is a bash script and relies on Git Bash's bash environment
+- This ensures TOC stays in sync automatically on every commit
+- Matches the Linux repository's implementation
+
+**When editing README.md**:
+- Just edit the content normally
+- TOC will auto-update when you commit
+- Don't manually edit the TOC section (between the comment markers)
+
+**Manual TOC update** (if needed):
+```bash
+# If you have doctoc installed separately (Linux/macOS/WSL):
+doctoc README.md --github
+
+# Or let the git hook handle it on commit:
+git add README.md
+git commit -m "Updated README"  # TOC updates automatically
+```
 
 ### Windows-Specific Considerations
 

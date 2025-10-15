@@ -1,0 +1,17 @@
+#!/bin/bash
+# Pre-commit hook to automatically update TOC in README.md
+
+# Check if README.md is being committed
+if git diff --cached --name-only | grep -q "^README.md$"; then
+    echo "README.md is being committed - updating TOC..."
+
+    # Run doctoc on README.md
+    doctoc README.md --github
+
+    # Add the updated README.md back to the commit
+    git add README.md
+
+    echo "TOC updated successfully!"
+fi
+
+exit 0

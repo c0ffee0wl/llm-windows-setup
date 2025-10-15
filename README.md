@@ -6,6 +6,53 @@ Automated installation script for [Simon Willison's llm CLI tool](https://github
 
 Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) project.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Features](#features)
+- [What Gets Installed](#what-gets-installed)
+  - [Core Tools](#core-tools)
+  - [LLM Plugins](#llm-plugins)
+  - [LLM Templates](#llm-templates)
+  - [Additional Tools](#additional-tools)
+  - [PowerShell Integration](#powershell-integration)
+- [System Requirements](#system-requirements)
+- [Installation](#installation)
+  - [Quick Start](#quick-start)
+  - [Execution Policy](#execution-policy)
+- [Updating](#updating)
+- [Usage](#usage)
+  - [Basic LLM Usage](#basic-llm-usage)
+  - [AI Command Completion](#ai-command-completion)
+  - [Azure OpenAI Models](#azure-openai-models)
+  - [Clipboard Aliases (macOS Compatibility)](#clipboard-aliases-macos-compatibility)
+  - [Additional Tools](#additional-tools-1)
+  - [Context System (PowerShell History for AI)](#context-system-powershell-history-for-ai)
+- [Configuration](#configuration)
+  - [Configuration Files](#configuration-files)
+  - [PowerShell Integration Files](#powershell-integration-files)
+  - [PowerShell Profile Locations](#powershell-profile-locations)
+  - [Changing Default Model](#changing-default-model)
+  - [Managing API Keys](#managing-api-keys)
+- [Troubleshooting](#troubleshooting)
+  - [Command completion not working](#command-completion-not-working)
+  - [Azure API errors](#azure-api-errors)
+  - ["llm" command not found](#llm-command-not-found)
+  - [Chocolatey installation fails](#chocolatey-installation-fails)
+  - [npm permissions errors](#npm-permissions-errors)
+- [Supported PowerShell Versions](#supported-powershell-versions)
+- [Documentation](#documentation)
+- [Differences from Linux Version](#differences-from-linux-version)
+  - [Windows-Specific Features](#windows-specific-features)
+  - [Excluded Features](#excluded-features)
+- [License](#license)
+- [Contributing](#contributing)
+- [Credits](#credits)
+- [Support](#support)
+- [Related Projects](#related-projects)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Features
 
 - ✅ **One-command installation** - Run once to install everything

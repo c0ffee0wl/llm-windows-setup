@@ -240,6 +240,59 @@ function Install-NpmPackage {
     }
 }
 
+function Install-LlmTemplate {
+    <#
+    .SYNOPSIS
+        Installs or updates an llm template file with smart update detection
+    .PARAMETER TemplateName
+        The template name without .yaml extension (e.g., "assistant", "code")
+    .PARAMETER TemplatesDir
+        The llm templates directory path
+    #>
+    param(
+        [string]$TemplateName,
+        [string]$TemplatesDir
+    )
+
+    $sourceTemplate = Join-Path $PSScriptRoot "llm-template\$TemplateName.yaml"
+    $destTemplate = Join-Path $TemplatesDir "$TemplateName.yaml"
+
+    if (-not (Test-Path $sourceTemplate)) {
+        Write-WarningLog "Template '$TemplateName' not found at $sourceTemplate"
+        return $false
+    }
+
+    if (Test-Path $destTemplate) {
+        # Both files exist - compare them
+        $sourceHash = (Get-FileHash $sourceTemplate).Hash
+        $destHash = (Get-FileHash $destTemplate).Hash
+
+        if ($sourceHash -ne $destHash) {
+            Write-Log "Template '$TemplateName' has changed in repository"
+            Write-Host ""
+            $updateTemplate = Read-Host "The $TemplateName.yaml template in the repository differs from your installed version. Update it? (y/N)"
+
+            if ($updateTemplate -eq 'y' -or $updateTemplate -eq 'Y') {
+                Copy-Item $sourceTemplate $destTemplate -Force
+                Write-Log "Template '$TemplateName' updated to $destTemplate"
+                return $true
+            } else {
+                Write-Log "Keeping existing '$TemplateName' template"
+                return $false
+            }
+        } else {
+            Write-Log "Template '$TemplateName' is up to date"
+            return $true
+        }
+    } else {
+        # Only repo version exists - install it
+        Write-Log "Installing $TemplateName.yaml template..."
+        Copy-Item $sourceTemplate $destTemplate
+        Write-Log "Template '$TemplateName' installed to $destTemplate"
+        return $true
+    }
+}
+
 # ============================================================================
 # Phase 0: Self-Update (Git Pull)
 # ============================================================================
@@ -856,39 +909,9 @@ $templatesDir = & $llmExe logs path | Split-Path | Join-Path -ChildPath "templat
 # Create templates directory if it doesn't exist
 New-Item -ItemType Directory -Path $templatesDir -Force | Out-Null
 
-# Copy assistant.yaml template from repository
-$sourceTemplate = Join-Path $PSScriptRoot "llm-template\assistant.yaml"
-$destTemplate = Join-Path $templatesDir "assistant.yaml"
-
-if (Test-Path $sourceTemplate) {
-    if (Test-Path $destTemplate) {
-        # Both files exist - compare them
-        $sourceHash = (Get-FileHash $sourceTemplate).Hash
-        $destHash = (Get-FileHash $destTemplate).Hash
-
-        if ($sourceHash -ne $destHash) {
-            Write-Log "Template has changed in repository"
-            Write-Host ""
-            $updateTemplate = Read-Host "The assistant.yaml template in the repository differs from your installed version. Update it? (y/N)"
-
-            if ($updateTemplate -eq 'y' -or $updateTemplate -eq 'Y') {
-                Copy-Item $sourceTemplate $destTemplate -Force
-                Write-Log "Template updated to $destTemplate"
-            } else {
-                Write-Log "Keeping existing template"
-            }
-        } else {
-            Write-Log "Template is up to date"
-        }
-    } else {
-        # Only repo version exists - install it
-        Write-Log "Installing assistant.yaml template..."
-        Copy-Item $sourceTemplate $destTemplate
-        Write-Log "Template installed to $destTemplate"
-    }
-} else {
-    Write-WarningLog "Template not found at $sourceTemplate"
-}
+# Install templates using helper function
+Install-LlmTemplate -TemplateName "assistant" -TemplatesDir $templatesDir
+Install-LlmTemplate -TemplateName "code" -TemplatesDir $templatesDir
 
 Write-Host ""
 

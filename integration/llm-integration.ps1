@@ -133,6 +133,24 @@ function llm {
         return
     }
 
+    # Handle 'code' subcommand specially (code-only output)
+    if ($args.Count -gt 0 -and $args[0] -eq "code") {
+        if ($args.Count -eq 1) {
+            # No prompt provided - show usage
+            Write-Host "Usage: llm code <prompt>" -ForegroundColor Yellow
+            Write-Host "Example: llm code 'python function to calculate fibonacci'" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "The code template outputs raw, executable code without explanations or markdown." -ForegroundColor Cyan
+            Write-Host "Perfect for piping to files: llm code 'python hello world' > hello.py" -ForegroundColor Cyan
+            return
+        } else {
+            # Remove 'code' and pass rest to llm with code template
+            $codeArgs = $args[1..($args.Count - 1)]
+            & $script:LlmExecutable -t code @codeArgs
+        }
+        return
+    }
+
     # Default: add assistant template
     & $script:LlmExecutable -t assistant @args
 }

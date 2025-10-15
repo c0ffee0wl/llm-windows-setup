@@ -9,11 +9,14 @@ Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) pro
 ## Features
 
 - ✅ **One-command installation** - Run once to install everything
-- ✅ **Auto-update check** - Script automatically checks for updates on every run
-- ✅ **Smart admin handling** - Only requires admin for Chocolatey installation
+- ✅ **Self-updating** - Re-run to update all tools automatically
+- ✅ **Safe git updates** - Pulls latest script version before execution
 - ✅ **Multi-PowerShell support** - Works with both PowerShell 5.1 and PowerShell 7+
 - ✅ **Azure OpenAI integration** - Configured for Azure Foundry
 - ✅ **AI command completion** - Press Ctrl+N for intelligent command suggestions
+- ✅ **Automatic session recording** - Terminal history captured for AI context
+- ✅ **AI-powered context retrieval** - Query your command history with `context` or `llm --tool context`
+- ✅ **Smart admin handling** - Only requires admin for Chocolatey installation
 
 ## What Gets Installed
 
@@ -24,32 +27,36 @@ Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) pro
 - **Node.js 22.x** - Via Chocolatey (latest in 22 branch)
 - **Git** - Via Chocolatey (if not already installed)
 - **jq** - JSON processor
+- **Claude Code** - Anthropic's agentic coding CLI
+- **OpenCode** - AI coding agent for terminal
 
 ### LLM Plugins
-- llm-gemini
-- llm-openrouter
-- llm-anthropic
-- llm-cmd
-- llm-cmd-comp
-- llm-tools-sqlite
-- llm-fragments-site-text
-- llm-fragments-pdf
-- llm-fragments-github
-- llm-jq
-- llm-templates-fabric (Damon McMinn's fork)
+- **llm-gemini** - Google Gemini models integration
+- **llm-openrouter** - OpenRouter API integration
+- **llm-anthropic** - Anthropic Claude models integration
+- **llm-cmd** - Command execution and management
+- **llm-cmd-comp** - AI-powered command completion (powers Ctrl+N)
+- **llm-tools-sqlite** - SQLite database tool
+- **llm-tools-context** - Terminal history integration (exposes `context` tool to AI)
+- **llm-fragments-site-text** - Web page content extraction
+- **llm-fragments-pdf** - PDF content extraction
+- **llm-fragments-github** - GitHub repository integration
+- **llm-jq** - JSON processing tool
+- **llm-templates-fabric** - Fabric prompt templates
 
 ### LLM Templates
 - **assistant.yaml** - Custom assistant template with security/IT expertise configuration
+- **code.yaml** - Code-only generation template (outputs clean, executable code without markdown)
 
 ### Additional Tools
 - **gitingest** - Convert Git repositories to LLM-friendly text
 - **files-to-prompt** - File content formatter for LLM prompts
-- **Claude Code** - Anthropic's agentic coding CLI
-- **OpenCode** - AI coding agent for terminal
+- **context** - PowerShell history extraction for AI context retrieval
 
 ### PowerShell Integration
 - AI-powered command completion (Ctrl+N)
 - Custom llm wrapper with default assistant template
+- Automatic PowerShell transcript logging for AI context
 - Clipboard aliases (`pbcopy`, `pbpaste`) for macOS compatibility
 - PATH configuration for all installed tools
 
@@ -157,6 +164,16 @@ The following models are configured (if you set up Azure OpenAI):
 - `azure/o4-mini` - O4 Mini
 - `azure/gpt-4.1` - GPT-4.1
 
+### Clipboard Aliases (macOS Compatibility)
+
+```powershell
+# Copy to clipboard (like macOS pbcopy)
+"Hello World" | pbcopy
+
+# Paste from clipboard (like macOS pbpaste)
+pbpaste
+```
+
 ### Additional Tools
 
 ```powershell
@@ -167,22 +184,44 @@ gitingest C:\path\to\local\repo
 # Convert files to LLM-friendly format
 files-to-prompt src\*.py
 
-# Use Claude Code
-code
-
 # Use OpenCode
 opencode
+
+# Use Claude Code
+claude
 ```
 
-### Clipboard Aliases (macOS Compatibility)
+### Context System (PowerShell History for AI)
+
+PowerShell sessions are automatically logged via transcript recording. The AI can retrieve your terminal history for better context:
 
 ```powershell
-# Copy to clipboard (like macOS pbcopy)
-"Hello World" | pbcopy
+# Show last command
+context
 
-# Paste from clipboard (like macOS pbpaste)
-pbpaste
+# Show last 5 commands
+context 5
+
+# Show entire session history
+context all
+
+# Check transcript file location
+$env:TRANSCRIPT_LOG_FILE
+
+# Check transcript directory
+$env:TRANSCRIPT_LOG_DIR
 ```
+
+**How it works:**
+- Each PowerShell session automatically starts transcript logging
+- Transcripts are stored in `$env:TRANSCRIPT_LOG_DIR` (configurable during installation)
+- The `context` command parses transcripts and extracts command history
+- The `llm-tools-context` plugin exposes this to AI models for contextual assistance
+- AI can call `context(N)` to retrieve last N commands when helping with your tasks
+
+**Storage options:**
+- **Temporary** (default): `%TEMP%\PowerShell_Transcripts` - cleared on logout/reboot
+- **Permanent**: `%USERPROFILE%\PowerShell_Transcripts` - survives reboots
 
 ## Configuration
 
@@ -295,20 +334,6 @@ Then add `%USERPROFILE%\.npm-global` to your PATH.
 - PowerShell 5.1 (Windows PowerShell - included with Windows 10/11)
 - PowerShell 7.x (PowerShell Core - cross-platform)
 
-## Directory Structure
-
-```
-llm-windows-setup/
-├── Install-LlmTools.ps1          # Main installation script
-├── integration/
-│   └── llm-integration.ps1       # PowerShell integration (PS5 & PS7)
-├── llm-template/
-│   └── assistant.yaml            # Custom assistant template
-├── README.md                      # This file
-├── LICENSE                        # License file
-└── .gitignore                     # Git ignore patterns
-```
-
 ## Documentation
 
 - [LLM Documentation](https://llm.datasette.io/)
@@ -323,19 +348,16 @@ llm-windows-setup/
 
 This Windows version differs from the [Linux version](https://github.com/c0ffee0wl/llm-linux-setup) in the following ways:
 
+### Windows-Specific Features
+- ✅ **Chocolatey** - Package manager for Windows
+- ✅ **Unified PowerShell integration** - Single file works with PS5 and PS7
+- ✅ **Windows clipboard aliases** - `pbcopy`/`pbpaste` for macOS compatibility
+- ✅ **PowerShell transcript logging** - Automatic session history capture for AI context
+- ✅ **Smart admin handling** - Only requires admin for Chocolatey installation
+
 ### Excluded Features
 - ❌ **Cargo/Rust installation** - Not included
 - ❌ **Asciinema** - Terminal recording not included
-- ❌ **Auto-logging** - No automatic session logging
-- ❌ **Context tool** - Terminal history integration not included
-- ❌ **Claude Code Router** - Not included
-
-### Windows-Specific Features
-- ✅ **Chocolatey** - Package manager for Windows
-- ✅ **Smart admin handling** - Only requires admin for Chocolatey installation
-- ✅ **Unified PowerShell integration** - Single file works with PS5 and PS7
-- ✅ **Windows clipboard aliases** - `pbcopy`/`pbpaste` for macOS compatibility
-- ✅ **Auto-update on script run** - Checks git repository and pulls updates automatically (Phase 0)
 
 ## License
 
@@ -363,9 +385,7 @@ To modify or extend this installation:
 
 For issues, questions, or suggestions:
 - Open an issue: https://github.com/c0ffee0wl/llm-windows-setup/issues
-- Linux version: https://github.com/c0ffee0wl/llm-linux-setup
 
 ## Related Projects
 
 - [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) - Linux/Debian version
-- [llm](https://github.com/simonw/llm) - The core llm CLI tool

@@ -167,10 +167,12 @@ The script uses helper functions to eliminate code duplication and follow the KI
    - Returns success/failure for validation
    - Parameters: `PackageName`
 
-6. **`Install-LlmTemplate`** (around line 243) - Unified llm template installation
-   - Installs or updates templates with smart update detection
-   - Compares file hashes to detect changes
-   - Prompts user if template differs from installed version
+6. **`Install-LlmTemplate`** (around line 243) - Unified llm template installation with three-way comparison
+   - Uses metadata tracking to detect user modifications vs upstream changes
+   - Tracks hash of last installed version in `.template-hashes.json`
+   - Auto-updates silently if template changed upstream but user hasn't modified it
+   - Prompts only if user has made local modifications
+   - PS5 compatible JSON handling for metadata persistence
    - Parameters: `TemplateName`, `TemplatesDir`
 
 Additional helper functions:
@@ -231,6 +233,50 @@ The llm wrapper function intelligently decides when to apply the assistant templ
    - Direct prompts: `llm "question"`
    - Chat sessions: `llm chat "topic"` → `llm chat -t assistant "topic"`
    - Code generation: `llm code "prompt"` → `llm -t code "prompt"`
+
+### Template Smart Update Logic
+
+The `Install-LlmTemplate` function uses **three-way comparison** to distinguish between user modifications and upstream updates:
+
+**Metadata tracking**:
+- Stores hash of last installed version in `%APPDATA%\io.datasette.llm\.template-hashes.json`
+- JSON format: `{"assistant": "abc123...", "code": "def456..."}`
+- Persists across script runs
+
+**Update decision logic**:
+
+1. **If installed hash == last installed hash** (user hasn't modified):
+   - Auto-updates silently when template changes in git
+   - Message: `"Updating 'assistant' template (no local modifications detected)..."`
+   - No user prompt required
+
+2. **If installed hash != last installed hash** (user has modified):
+   - Prompts before overwriting: `"Overwrite your local changes? (y/N)"`
+   - Shows warning about local modifications
+   - User must explicitly confirm to update
+
+3. **If no metadata exists** (first install or unknown state):
+   - Installs template without prompting
+   - Creates metadata for future comparisons
+
+**Benefits**:
+- Eliminates unnecessary prompts for routine updates
+- Protects user customizations from accidental overwrites
+- Works seamlessly with git-based auto-updates (Phase 0)
+- PowerShell 5 & 7 compatible
+
+**Example scenarios**:
+
+```powershell
+# Scenario 1: Template updated in git, user hasn't touched it
+# Result: Auto-updates silently ✓
+
+# Scenario 2: User modified template, new version available
+# Result: Prompts "Overwrite your local changes? (y/N)" ✓
+
+# Scenario 3: User modified template, no new version
+# Result: Keeps existing template, updates metadata ✓
+```
 
 ### PATH Management Strategy
 
@@ -458,6 +504,7 @@ git commit -m "Updated README"  # TOC updates automatically
 - `%APPDATA%\io.datasette.llm\extra-openai-models.yaml` - Azure OpenAI model config
 - `%APPDATA%\io.datasette.llm\templates\assistant.yaml` - LLM assistant template
 - `%APPDATA%\io.datasette.llm\templates\code.yaml` - LLM code-only template
+- `%APPDATA%\io.datasette.llm\.template-hashes.json` - Template installation metadata for smart update detection
 - `%APPDATA%\io.datasette.llm\.transcript-configured` - Transcript storage configuration marker
 - `%USERPROFILE%\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` - PS5 profile
 - `%USERPROFILE%\Documents\PowerShell\Microsoft.PowerShell_profile.ps1` - PS7 profile

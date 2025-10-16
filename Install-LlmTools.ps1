@@ -244,6 +244,11 @@ function Install-LlmTemplate {
     <#
     .SYNOPSIS
         Installs or updates an llm template file with smart update detection
+    .DESCRIPTION
+        Uses three-way comparison to detect user modifications:
+        - Tracks hash of last installed version in metadata file
+        - Auto-updates silently if user hasn't modified the template
+        - Prompts only if user has local modifications
     .PARAMETER TemplateName
         The template name without .yaml extension (e.g., "assistant", "code")
     .PARAMETER TemplatesDir
@@ -256,41 +261,98 @@ function Install-LlmTemplate {
 
     $sourceTemplate = Join-Path $PSScriptRoot "llm-template\$TemplateName.yaml"
     $destTemplate = Join-Path $TemplatesDir "$TemplateName.yaml"
+    $llmConfigDir = Join-Path $env:APPDATA "io.datasette.llm"
+    $metadataFile = Join-Path $llmConfigDir ".template-hashes.json"
 
     if (-not (Test-Path $sourceTemplate)) {
         Write-WarningLog "Template '$TemplateName' not found at $sourceTemplate"
         return $false
     }
 
+    # Load metadata (PS5 compatible)
+    $metadata = @{}
+    if (Test-Path $metadataFile) {
+        try {
+            $jsonContent = Get-Content $metadataFile -Raw | ConvertFrom-Json
+            # Convert PSCustomObject to hashtable for PS5 compatibility
+            $jsonContent.PSObject.Properties | ForEach-Object {
+                $metadata[$_.Name] = $_.Value
+            }
+        } catch {
+            Write-WarningLog "Failed to read template metadata: $_"
+        }
+    }
+
     if (Test-Path $destTemplate) {
-        # Both files exist - compare them
+        # Both files exist - perform three-way comparison
         $sourceHash = (Get-FileHash $sourceTemplate).Hash
         $destHash = (Get-FileHash $destTemplate).Hash
 
-        if ($sourceHash -ne $destHash) {
-            Write-Log "Template '$TemplateName' has changed in repository"
-            Write-Host ""
-            $updateTemplate = Read-Host "The $TemplateName.yaml template in the repository differs from your installed version. Update it? (y/N)"
-
-            if ($updateTemplate -eq 'y' -or $updateTemplate -eq 'Y') {
-                Copy-Item $sourceTemplate $destTemplate -Force
-                Write-Log "Template '$TemplateName' updated to $destTemplate"
-                return $true
-            } else {
-                Write-Log "Keeping existing '$TemplateName' template"
-                return $false
-            }
-        } else {
+        # Check if files are identical
+        if ($sourceHash -eq $destHash) {
             Write-Log "Template '$TemplateName' is up to date"
-            return $true
+            # Update metadata to reflect current state
+            $metadata[$TemplateName] = $sourceHash
+        } else {
+            # Files differ - check if user has modified it
+            $lastInstalledHash = $metadata[$TemplateName]
+            $userModified = $lastInstalledHash -and ($destHash -ne $lastInstalledHash)
+
+            if ($userModified) {
+                # User has local modifications - prompt before overwriting
+                Write-Log "Template '$TemplateName' has local modifications"
+                Write-Host ""
+                Write-Host "Your installed version differs from the last installed version." -ForegroundColor Yellow
+                Write-Host "A new version is available in the repository." -ForegroundColor Yellow
+                Write-Host ""
+                $updateTemplate = Read-Host "Overwrite your local changes? (y/N)"
+                Write-Host ""
+
+                if ($updateTemplate -ne 'y' -and $updateTemplate -ne 'Y') {
+                    Write-Log "Keeping existing '$TemplateName' template"
+                    return $false
+                }
+            } else {
+                # No user modifications detected - auto-update silently
+                Write-Log "Updating '$TemplateName' template (no local modifications detected)..."
+            }
+
+            # Update template
+            Copy-Item $sourceTemplate $destTemplate -Force
+            Write-Log "Template '$TemplateName' updated to $destTemplate"
+
+            # Update metadata with new hash
+            $metadata[$TemplateName] = $sourceHash
         }
     } else {
         # Only repo version exists - install it
         Write-Log "Installing $TemplateName.yaml template..."
         Copy-Item $sourceTemplate $destTemplate
         Write-Log "Template '$TemplateName' installed to $destTemplate"
-        return $true
+
+        # Store hash in metadata
+        $sourceHash = (Get-FileHash $sourceTemplate).Hash
+        $metadata[$TemplateName] = $sourceHash
     }
+
+    # Save metadata (PS5 compatible)
+    try {
+        # Convert hashtable to PSCustomObject for JSON serialization
+        $jsonObject = New-Object PSObject
+        $metadata.GetEnumerator() | ForEach-Object {
+            $jsonObject | Add-Member -MemberType NoteProperty -Name $_.Key -Value $_.Value
+        }
+
+        # Ensure directory exists
+        New-Item -ItemType Directory -Path $llmConfigDir -Force | Out-Null
+
+        # Save as JSON with ASCII encoding
+        $jsonObject | ConvertTo-Json | Set-Content -Path $metadataFile -Encoding Ascii
+    } catch {
+        Write-WarningLog "Failed to save template metadata: $_"
+    }
+
+    return $true
 }
 
 # ============================================================================

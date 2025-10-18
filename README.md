@@ -6,6 +6,10 @@ Automated installation script for [Simon Willison's llm CLI tool](https://github
 
 Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) project.
 
+> **📖 Looking for the Linux version?**
+> This is the Windows adaptation. For the **original Linux version** with additional features like AIChat (RAG), sandboxed shell execution, and more extensive documentation, see:
+> **[llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup)** - Linux/Debian/Ubuntu/Kali version
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
@@ -57,7 +61,6 @@ Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) pro
 
 - ✅ **One-command installation** - Run once to install everything
 - ✅ **Self-updating** - Re-run to update all tools automatically
-- ✅ **Safe git updates** - Pulls latest script version before execution
 - ✅ **Multi-PowerShell support** - Works with both PowerShell 5.1 and PowerShell 7+
 - ✅ **Azure OpenAI integration** - Configured for Azure Foundry
 - ✅ **AI command completion** - Press Ctrl+N for intelligent command suggestions
@@ -69,18 +72,15 @@ Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) pro
 
 ### Core Tools
 - **llm** - Simon Willison's LLM CLI tool
+- **Claude Code** - Anthropic's agentic coding CLI
+- **OpenCode** - AI coding agent for terminal
 - **uv** - Modern Python package installer
 - **Python 3** - Via Chocolatey
 - **Node.js 22.x** - Via Chocolatey (latest in 22 branch)
 - **Git** - Via Chocolatey (if not already installed)
 - **jq** - JSON processor
-- **Claude Code** - Anthropic's agentic coding CLI
-- **OpenCode** - AI coding agent for terminal
 
 ### LLM Plugins
-- **llm-gemini** - Google Gemini models integration
-- **llm-openrouter** - OpenRouter API integration
-- **llm-anthropic** - Anthropic Claude models integration
 - **llm-cmd** - Command execution and management
 - **llm-cmd-comp** - AI-powered command completion (powers Ctrl+N)
 - **llm-tools-sqlite** - SQLite database tool
@@ -90,6 +90,9 @@ Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) pro
 - **llm-fragments-github** - GitHub repository integration
 - **llm-jq** - JSON processing tool
 - **llm-templates-fabric** - Fabric prompt templates
+- **llm-gemini** - Google Gemini models integration
+- **llm-openrouter** - OpenRouter API integration
+- **llm-anthropic** - Anthropic Claude models integration
 
 ### LLM Templates
 - **assistant.yaml** - Custom assistant template with security/IT expertise configuration
@@ -395,16 +398,121 @@ Then add `%USERPROFILE%\.npm-global` to your PATH.
 
 This Windows version differs from the [Linux version](https://github.com/c0ffee0wl/llm-linux-setup) in the following ways:
 
-### Windows-Specific Features
-- ✅ **Chocolatey** - Package manager for Windows
-- ✅ **Unified PowerShell integration** - Single file works with PS5 and PS7
-- ✅ **Windows clipboard aliases** - `pbcopy`/`pbpaste` for macOS compatibility
-- ✅ **PowerShell transcript logging** - Automatic session history capture for AI context
-- ✅ **Smart admin handling** - Only requires admin for Chocolatey installation
+> **📚 Note:** The [Linux version](https://github.com/c0ffee0wl/llm-linux-setup) contains more extensive documentation, detailed usage examples, and additional features. Refer to its README for comprehensive guides on fragments, templates, RAG, and advanced workflows.
 
-### Excluded Features
-- ❌ **Cargo/Rust installation** - Not included
-- ❌ **Asciinema** - Terminal recording not included
+### Platform & Package Management
+
+**Windows:**
+- Uses **Chocolatey** for system packages (Python, Node.js, Git, jq)
+- Smart admin privilege model (admin only required for Chocolatey on first run)
+- User-scoped installations for everything else (pipx, uv, npm global)
+
+**Linux:**
+- Uses **apt/dpkg** for system packages
+- **rustup** for Rust toolchain management (required for aichat/argc)
+- **nvm** for Node.js version management (if repository version < 20)
+- Root/sudo access required for system package installation
+
+### Shell Integration
+
+**Windows:**
+- **PowerShell 5.1 and 7+** support
+- Single integration file (`llm-integration.ps1`) works for both PS versions
+- Uses **PSReadLine** for Ctrl+N command completion
+- Clipboard aliases: `pbcopy`/`pbpaste` functions
+
+**Linux:**
+- **Bash and Zsh** support
+- Three-file integration pattern:
+  - `llm-common.sh` - Shared configuration
+  - `llm-integration.bash` - Bash-specific widgets
+  - `llm-integration.zsh` - Zsh-specific widgets
+- Clipboard aliases via `xsel` (macOS compatibility layer)
+
+### Session Recording & Context System
+
+**Windows:**
+- Uses native PowerShell **`Start-Transcript`** cmdlet
+- Creates `.txt` transcript files (UTF-16-LE or UTF-8 encoding)
+- Stores in `%TEMP%\PowerShell_Transcripts` (temporary) or `%USERPROFILE%\PowerShell_Transcripts` (permanent)
+- One transcript per PowerShell window/tab
+- Parses transcript files with `context.py` (indentation-based parsing)
+- **Limitation:** Native commands (ping, git, etc.) output not always captured by PowerShell transcription
+
+**Linux:**
+- Uses **asciinema** for terminal recording (built from source for latest features)
+- Creates `.cast` files (asciinema JSON format)
+- Stores in `/tmp/session_logs/asciinema` (temporary) or `~/session_logs/asciinema` (permanent)
+- **Tmux/screen support:** Each pane/window gets independent recording with unique session files
+- Parses `.cast` files with `context` script (regex-based prompt detection)
+- Full command output capture including native commands
+
+### LLM Assistant Template Differences
+
+**Windows (`assistant.yaml`):**
+- **Context:** Windows 10/11/Server, PowerShell, optional WSL2
+- **Tools:** `context` only
+
+**Linux (`assistant.yaml`):**
+- **Context:** Kali Linux, Ubuntu, Debian, Xfce, Terminator, Zsh
+- **Tools:** `context` + `sandboxed_shell` (bubblewrap-based safe command execution)
+
+### Tools & Features Exclusive to Linux Version
+
+The Linux version includes several additional tools not present in the Windows version:
+
+#### AIChat (RAG Functionality)
+- **AIChat** - All-in-one LLM CLI with built-in RAG (Retrieval-Augmented Generation)
+- Built-in vector database for document querying
+- Query codebases, documents, and knowledge bases: `llm rag mydocs`
+- Supports multiple document sources (Git repos, URLs, PDFs, DOCX, directories)
+- Auto-configured with Azure OpenAI settings
+
+#### Sandboxed Command Execution
+- **llm-tools-sandboxed-shell** - Execute shell commands safely using bubblewrap
+- Isolated environment (read-only root, no network access, Linux namespaces)
+- Built into the Linux assistant template by default
+- Requires bubblewrap (automatically installed)
+
+#### Session Recording
+- **asciinema** - Terminal session recorder (built from source)
+- Advanced `.cast` format with full terminal output capture
+- Tmux/screen pane-specific recording support
+
+#### Developer Tools & Frameworks
+- **Rust/Cargo toolchain** - Required for building aichat and argc
+- **argc** - Bash CLI framework and command runner (enables llm-functions integration)
+- **llm-tools-llm-functions bridge** - Integration with llm-functions framework (build custom LLM tools in Bash/JS/Python)
+
+#### Document Processing
+- **poppler-utils** - PDF text extraction (pdftotext)
+- **pandoc** - Document converter (DOCX support for RAG)
+
+### Features Exclusive to Windows Version
+
+**ZIP-to-Git Conversion (Phase 2.5):**
+- If repository downloaded as ZIP, offers to convert to git repository
+- Enables auto-updates via git pull
+- Automatic remote configuration and branch setup
+
+**PowerShell Transcript Integration:**
+- Native Windows session logging (no external dependencies)
+- Works seamlessly with PowerShell's built-in transcription
+- Multi-session support via `$env:TRANSCRIPT_LOG_FILE`
+
+### What's the Same
+
+Both versions share these core features:
+
+- ✅ **llm CLI tool** - Simon Willison's LLM CLI
+- ✅ **Self-updating installation scripts** - git pull before execution
+- ✅ **Azure OpenAI integration** - Configured for Azure Foundry
+- ✅ **AI command completion** - Ctrl+N intelligent command suggestions via `llm cmdcomp`
+- ✅ **Context system** - Query terminal history with AI
+- ✅ **Custom templates** - `assistant.yaml` (security/IT expertise) and `code.yaml` (clean code output)
+- ✅ **LLM plugins** - gemini, openrouter, anthropic, fragments (site-text, pdf, github), jq, sqlite
+- ✅ **Additional tools** - gitingest, files-to-prompt, Claude Code, OpenCode
+- ✅ **Smart template application** - Shell wrapper auto-applies assistant template
 
 ## License
 

@@ -208,11 +208,16 @@ The AI will suggest and insert the command automatically.
 ### Azure OpenAI Models
 
 The following models are configured (if you set up Azure OpenAI):
-- `azure/gpt-5` - GPT-5
-- `azure/gpt-5-mini` - GPT-5 Mini (default)
-- `azure/gpt-5-nano` - GPT-5 Nano
+- `azure/gpt-5-nano` - GPT-5 Nano (default, recommended for most tasks)
+- `azure/gpt-5-mini` - GPT-5 Mini (recommended for complex tasks)
+- `azure/gpt-5` - GPT-5 (most capable)
 - `azure/o4-mini` - O4 Mini
 - `azure/gpt-4.1` - GPT-4.1
+
+To switch models for more complex tasks:
+```powershell
+llm models default azure/gpt-5-mini
+```
 
 ### Clipboard Aliases (macOS Compatibility)
 

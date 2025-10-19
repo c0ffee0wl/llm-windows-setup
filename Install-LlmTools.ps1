@@ -882,10 +882,18 @@ if ($azureConfigured) {
     # Set default model if not already set
     $defaultModelFile = Join-Path $llmConfigDir "default_model.txt"
     if (-not (Test-Path $defaultModelFile)) {
-        Write-Log "Setting default model to azure/gpt-5-mini..."
-        & $llmExe models default azure/gpt-5-mini
+        Write-Log "Setting default model to azure/gpt-5-nano..."
+        & $llmExe models default azure/gpt-5-nano
     } else {
-        Write-Log "Default model already configured, skipping..."
+        # Check if current default is gpt-5-mini and migrate to gpt-5-nano
+        $currentDefault = Get-Content $defaultModelFile -Raw -ErrorAction SilentlyContinue
+        if ($currentDefault -and $currentDefault.Trim() -eq "azure/gpt-5-mini") {
+            Write-Log "Migrating default model from azure/gpt-5-mini to azure/gpt-5-nano..."
+            Write-Host "  Note: gpt-5-nano is recommended for most tasks. For complex tasks, use: llm models default azure/gpt-5-mini" -ForegroundColor Yellow
+            & $llmExe models default azure/gpt-5-nano
+        } else {
+            Write-Log "Default model already configured, skipping..."
+        }
     }
 }
 

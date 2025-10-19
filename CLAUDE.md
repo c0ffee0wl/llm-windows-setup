@@ -526,8 +526,8 @@ git commit -m "Updated README"  # TOC updates automatically
 Models are configured in YAML with this structure:
 
 ```yaml
-- model_id: azure/gpt-5-mini
-  model_name: gpt-5-mini
+- model_id: azure/gpt-5-nano
+  model_name: gpt-5-nano
   api_base: https://YOUR-RESOURCE.openai.azure.com/openai/v1/
   api_key_name: azure
   supports_tools: true
@@ -535,7 +535,21 @@ Models are configured in YAML with this structure:
   vision: true
 ```
 
-Default model is set to `azure/gpt-5-mini` on first run.
+Default model is set to `azure/gpt-5-nano` on first run.
+
+**Model Selection Guidance:**
+- `azure/gpt-5-nano` - Default model, suitable for most tasks (fast, cost-effective)
+- `azure/gpt-5-mini` - Recommended for more complex tasks requiring deeper reasoning
+- `azure/gpt-5` - Most capable model for advanced use cases
+
+To switch to a different model:
+```powershell
+# For complex tasks
+llm models default azure/gpt-5-mini
+
+# For maximum capability
+llm models default azure/gpt-5
+```
 
 ## Troubleshooting Installation Script
 

@@ -835,6 +835,30 @@ if ($azureConfigured) {
     Write-Log "Creating Azure OpenAI models configuration..."
 
     $yamlContent = @"
+- model_id: azure/gpt-4.1
+  model_name: gpt-4.1
+  api_base: $azureApiBase
+  api_key_name: azure
+  supports_tools: true
+  supports_schema: true
+  vision: true
+
+- model_id: azure/gpt-4.1-mini
+  model_name: gpt-4.1-mini
+  api_base: $azureApiBase
+  api_key_name: azure
+  supports_tools: true
+  supports_schema: true
+  vision: true
+
+- model_id: azure/gpt-4.1-nano
+  model_name: gpt-4.1-nano
+  api_base: $azureApiBase
+  api_key_name: azure
+  supports_tools: true
+  supports_schema: true
+  vision: true
+
 - model_id: azure/gpt-5
   model_name: gpt-5
   api_base: $azureApiBase
@@ -866,14 +890,6 @@ if ($azureConfigured) {
   supports_tools: true
   supports_schema: true
   vision: true
-
-- model_id: azure/gpt-4.1
-  model_name: gpt-4.1
-  api_base: $azureApiBase
-  api_key_name: azure
-  supports_tools: true
-  supports_schema: true
-  vision: true
 "@
 
     New-Item -ItemType Directory -Path $llmConfigDir -Force | Out-Null
@@ -882,15 +898,15 @@ if ($azureConfigured) {
     # Set default model if not already set
     $defaultModelFile = Join-Path $llmConfigDir "default_model.txt"
     if (-not (Test-Path $defaultModelFile)) {
-        Write-Log "Setting default model to azure/gpt-5-nano..."
-        & $llmExe models default azure/gpt-5-nano
+        Write-Log "Setting default model to azure/gpt-4.1-mini..."
+        & $llmExe models default azure/gpt-4.1-mini
     } else {
-        # Check if current default is gpt-5-mini and migrate to gpt-5-nano
+        # Check if current default is any gpt-5 variant and migrate to gpt-4.1-mini
         $currentDefault = Get-Content $defaultModelFile -Raw -ErrorAction SilentlyContinue
-        if ($currentDefault -and $currentDefault.Trim() -eq "azure/gpt-5-mini") {
-            Write-Log "Migrating default model from azure/gpt-5-mini to azure/gpt-5-nano..."
-            Write-Host "  Note: gpt-5-nano is recommended for most tasks. For complex tasks, use: llm models default azure/gpt-5-mini" -ForegroundColor Yellow
-            & $llmExe models default azure/gpt-5-nano
+        if ($currentDefault -and $currentDefault.Trim() -like "azure/gpt-5*") {
+            Write-Log "Migrating default model from $($currentDefault.Trim()) to azure/gpt-4.1-mini..."
+            Write-Host "  Note: gpt-4.1-mini is recommended for most tasks. For complex tasks, use: llm models default azure/gpt-4.1" -ForegroundColor Yellow
+            & $llmExe models default azure/gpt-4.1-mini
         } else {
             Write-Log "Default model already configured, skipping..."
         }

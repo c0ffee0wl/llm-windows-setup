@@ -526,8 +526,8 @@ git commit -m "Updated README"  # TOC updates automatically
 Models are configured in YAML with this structure:
 
 ```yaml
-- model_id: azure/gpt-5-nano
-  model_name: gpt-5-nano
+- model_id: azure/gpt-4.1-mini
+  model_name: gpt-4.1-mini
   api_base: https://YOUR-RESOURCE.openai.azure.com/openai/v1/
   api_key_name: azure
   supports_tools: true
@@ -535,21 +535,24 @@ Models are configured in YAML with this structure:
   vision: true
 ```
 
-Default model is set to `azure/gpt-5-nano` on first run.
+Default model is set to `azure/gpt-4.1-mini` on first run.
 
 **Model Selection Guidance:**
-- `azure/gpt-5-nano` - Default model, suitable for most tasks (fast, cost-effective)
-- `azure/gpt-5-mini` - Recommended for more complex tasks requiring deeper reasoning
-- `azure/gpt-5` - Most capable model for advanced use cases
+- `azure/gpt-4.1-mini` - Default model, suitable for most tasks (balanced performance and cost)
+- `azure/gpt-4.1` - Recommended for more complex tasks requiring deeper reasoning
+- `azure/gpt-5-mini` - Advanced reasoning capabilities (if available in your deployment)
+- `azure/gpt-5` - Most capable model for advanced use cases (if available)
 
 To switch to a different model:
 ```powershell
 # For complex tasks
-llm models default azure/gpt-5-mini
+llm models default azure/gpt-4.1
 
-# For maximum capability
-llm models default azure/gpt-5
+# For advanced reasoning (if available)
+llm models default azure/gpt-5-mini
 ```
+
+**Automatic Migration:** If you previously used any `gpt-5` variant as your default, the installation script will automatically migrate you to `gpt-4.1-mini` for better compatibility and performance.
 
 ## Troubleshooting Installation Script
 

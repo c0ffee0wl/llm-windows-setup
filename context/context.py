@@ -285,7 +285,9 @@ def main():
         print(f"# Encoding used: {encoding_used}", file=sys.stderr)
         print(f"# File size: {len(text)} characters", file=sys.stderr)
         print(f"# Contains **** separators: {'****' in text}", file=sys.stderr)
-        print(f"# Contains PS prompts: {bool(re.search(r'PS\\s+[A-Za-z]:', text))}", file=sys.stderr)
+        # Extract pattern to avoid f-string backslash restriction
+        ps_prompt_pattern = r'PS\s+[A-Za-z]:'
+        print(f"# Contains PS prompts: {bool(re.search(ps_prompt_pattern, text))}", file=sys.stderr)
 
         # Show first few characters (to debug encoding issues)
         first_chars = repr(text[:100])

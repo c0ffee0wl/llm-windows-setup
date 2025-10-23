@@ -205,7 +205,7 @@ function Install-UvTool {
         # llm install -U llm upgrades within the existing environment, preserving plugins
         if ($toolNameToCheck -eq "llm") {
             Write-Log "Using llm self-upgrade to preserve plugins..."
-            & llm install -U llm
+            & (Get-Command -Name llm -CommandType Application -ErrorAction Stop).Source install -U llm
         } else {
             & uv tool upgrade $toolNameToCheck
         }

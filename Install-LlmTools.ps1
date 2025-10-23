@@ -936,7 +936,6 @@ Write-Host ""
 # Regular plugins
 $plugins = @(
     "llm-gemini",
-    "llm-vertex",
     "llm-openrouter",
     "llm-anthropic",
     "llm-tools-sqlite",
@@ -950,7 +949,8 @@ $plugins = @(
 $gitPlugins = @(
     "git+https://github.com/c0ffee0wl/llm-cmd",
     "git+https://github.com/c0ffee0wl/llm-cmd-comp",
-    "git+https://github.com/c0ffee0wl/llm-templates-fabric"
+    "git+https://github.com/c0ffee0wl/llm-templates-fabric",
+    "git+https://github.com/c0ffee0wl/llm-vertex"
 )
 
 # Install regular plugins

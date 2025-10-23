@@ -91,6 +91,7 @@ Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) pro
 - **llm-jq** - JSON processing tool
 - **llm-templates-fabric** - Fabric prompt templates
 - **llm-gemini** - Google Gemini models integration
+- **llm-vertex** - Google Vertex AI integration (enterprise API)
 - **llm-openrouter** - OpenRouter API integration
 - **llm-anthropic** - Anthropic Claude models integration
 

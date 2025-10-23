@@ -928,6 +928,7 @@ Write-Host ""
 # Regular plugins
 $plugins = @(
     "llm-gemini",
+    "llm-vertex",
     "llm-openrouter",
     "llm-anthropic",
     "llm-tools-sqlite",
@@ -1254,7 +1255,7 @@ Write-Log "============================================="
 Write-Host ""
 Write-Log "Installed tools:"
 Write-Log "  - llm (Simon Willison's CLI tool)"
-Write-Log "  - llm plugins (gemini, anthropic, tools, fragments, jq, fabric templates, context)"
+Write-Log "  - llm plugins (gemini, vertex, anthropic, tools, fragments, jq, fabric templates, context)"
 Write-Log "  - gitingest (Git repository to LLM-friendly text)"
 Write-Log "  - files-to-prompt (file content formatter)"
 Write-Log "  - context (PowerShell history extraction for AI)"

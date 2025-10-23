@@ -675,6 +675,43 @@ icacls "$env:LOCALAPPDATA\pip\cache" /grant "${env:USERNAME}:(OI)(CI)F" /T
 
 **Prevention**: The updated installation script uses the `--no-cache-dir` flag to bypass pip cache entirely for local package installations, preventing permission conflicts between admin and non-admin runs.
 
+### Issue: Plugins lost after upgrading llm
+
+**Symptoms**:
+- After running the installation script, all previously installed llm plugins disappear
+- Commands like `llm plugins list` show fewer plugins than before
+- Need to reinstall plugins manually after each upgrade
+
+**Cause**: This is a known limitation with `uv tool upgrade`. When uv upgrades a tool, it recreates the virtual environment from scratch, which wipes out all plugins that were installed via `llm install <plugin>`. The plugins are installed using pip into llm's environment, but uv doesn't track these additional packages.
+
+**Solution**: The installation script automatically handles this by using `llm install -U llm` instead of `uv tool upgrade llm`. This leverages llm's self-upgrade capability, which upgrades llm within its existing environment, preserving all installed plugins.
+
+**How it works**:
+- When the script detects llm is already installed, it uses: `llm install -U llm`
+- This upgrades the llm package itself without recreating the entire environment
+- All plugins remain intact after the upgrade
+- Other tools (gitingest, files-to-prompt, etc.) still use `uv tool upgrade` normally
+
+**Manual upgrade** (if running llm commands directly):
+```powershell
+# DO NOT use this (loses plugins):
+uv tool upgrade llm
+
+# USE THIS instead (preserves plugins):
+llm install -U llm
+```
+
+**Alternative workaround** (if you must use uv tool upgrade):
+You can install llm with plugins specified via `--with` flags, which uv tracks and preserves:
+```powershell
+uv tool install llm --with llm-gemini --with llm-vertex --with llm-openrouter
+# Now uv tool upgrade will preserve these plugins
+```
+
+However, this approach requires manually tracking all your plugins in the install command. The script's approach using `llm install -U llm` is simpler and more maintainable.
+
+**Reference**: This issue is documented at https://github.com/simonw/llm/issues/733
+
 ## Troubleshooting
 
 ### Issue: Ctrl+N command completion not working or behaving incorrectly

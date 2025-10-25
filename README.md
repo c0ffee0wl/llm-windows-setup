@@ -209,15 +209,17 @@ The AI will suggest and insert the command automatically.
 ### Azure OpenAI Models
 
 The following models are configured (if you set up Azure OpenAI):
-- `azure/gpt-5-nano` - GPT-5 Nano (default, recommended for most tasks)
-- `azure/gpt-5-mini` - GPT-5 Mini (recommended for complex tasks)
+- `azure/gpt-4.1-mini` - GPT-4.1 Mini (default, recommended for most tasks)
+- `azure/gpt-4.1` - GPT-4.1 (recommended for complex tasks)
+- `azure/gpt-4.1-nano` - GPT-4.1 Nano (lightweight)
 - `azure/gpt-5` - GPT-5 (most capable)
+- `azure/gpt-5-mini` - GPT-5 Mini (advanced reasoning)
+- `azure/gpt-5-nano` - GPT-5 Nano (advanced lightweight)
 - `azure/o4-mini` - O4 Mini
-- `azure/gpt-4.1` - GPT-4.1
 
 To switch models for more complex tasks:
 ```powershell
-llm models default azure/gpt-5-mini
+llm models default azure/gpt-4.1
 ```
 
 ### Clipboard Aliases (macOS Compatibility)
@@ -304,7 +306,7 @@ The installation script adds integration to:
 ### Changing Default Model
 
 ```powershell
-llm models default azure/gpt-5
+llm models default azure/gpt-4.1
 ```
 
 ### Managing API Keys

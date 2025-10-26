@@ -37,7 +37,7 @@ The script executes in 11 sequential phases:
 2. **Prerequisites** - Install Python 3, Node.js 22.x, Git, jq via Chocolatey using `Install-ChocoPackage`
 2.5. **ZIP-to-Git Conversion** (Optional) - If downloaded as ZIP, offers to convert directory to git repository for auto-updates
 3. **Python Tools** - Install pipx, uv (user-scoped via `--user`)
-4. **LLM Core** - Install `llm` via `Install-UvTool` helper function
+4. **LLM Core** - Install `llm` from c0ffee0wl fork (git+https://github.com/c0ffee0wl/llm) with markdown enhancements
 5. **Azure OpenAI Config** - Interactive setup (optional, first-run detection)
 6. **LLM Plugins** - Install llm plugins (regular and git-based)
 7. **LLM Templates** - Copy assistant.yaml and code.yaml with smart update detection
@@ -684,31 +684,24 @@ icacls "$env:LOCALAPPDATA\pip\cache" /grant "${env:USERNAME}:(OI)(CI)F" /T
 
 **Cause**: This is a known limitation with `uv tool upgrade`. When uv upgrades a tool, it recreates the virtual environment from scratch, which wipes out all plugins that were installed via `llm install <plugin>`. The plugins are installed using pip into llm's environment, but uv doesn't track these additional packages.
 
-**Solution**: The installation script automatically handles this by using `llm install -U llm` instead of `uv tool upgrade llm`. This leverages llm's self-upgrade capability, which upgrades llm within its existing environment, preserving all installed plugins.
+**Solution**: The installation script now uses the same approach as the Linux version:
+- Uses `uv tool upgrade llm` to upgrade from the git fork (git+https://github.com/c0ffee0wl/llm)
+- Plugins are automatically reinstalled in Phase 6 every time the script runs
+- This ensures a clean, consistent plugin state and pulls updates from the fork
 
 **How it works**:
-- When the script detects llm is already installed, it uses: `llm install -U llm`
-- This upgrades the llm package itself without recreating the entire environment
-- All plugins remain intact after the upgrade
-- Other tools (gitingest, files-to-prompt, etc.) still use `uv tool upgrade` normally
+- Phase 4: `uv tool upgrade llm` upgrades llm from the git fork
+- Phase 6: All plugins are reinstalled/upgraded via `llm install <plugin> --upgrade`
+- This approach is slightly slower but ensures plugins are always at the correct versions
+- Matches the Linux version's proven approach
 
-**Manual upgrade** (if running llm commands directly):
-```powershell
-# DO NOT use this (loses plugins):
-uv tool upgrade llm
+**Why this approach**:
+- ✅ Correctly upgrades from git fork (not PyPI)
+- ✅ Ensures all plugins are at latest versions
+- ✅ Clean state on every run
+- ✅ Consistent with Linux version
 
-# USE THIS instead (preserves plugins):
-llm install -U llm
-```
-
-**Alternative workaround** (if you must use uv tool upgrade):
-You can install llm with plugins specified via `--with` flags, which uv tracks and preserves:
-```powershell
-uv tool install llm --with llm-gemini --with llm-vertex --with llm-openrouter
-# Now uv tool upgrade will preserve these plugins
-```
-
-However, this approach requires manually tracking all your plugins in the install command. The script's approach using `llm install -U llm` is simpler and more maintainable.
+**Note**: This behavior is intentional and expected. The script is designed to be idempotent - you can run it multiple times safely.
 
 **Reference**: This issue is documented at https://github.com/simonw/llm/issues/733
 

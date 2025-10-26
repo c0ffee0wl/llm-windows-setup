@@ -200,16 +200,10 @@ function Install-UvTool {
     $toolInstalled = & uv tool list 2>&1 | Select-String $toolNameToCheck
 
     if ($toolInstalled) {
-        # Special handling for llm: use self-upgrade to preserve plugins
-        # uv tool upgrade recreates the environment and loses all installed plugins
-        # llm install -U llm upgrades within the existing environment, preserving plugins
-        if ($toolNameToCheck -eq "llm") {
-            Write-Log "Using llm self-upgrade to preserve plugins..."
-            & (Get-Command -Name llm -CommandType Application -ErrorAction Stop).Source install -U llm
-        } else {
-            & uv tool upgrade $toolNameToCheck
-        }
+        Write-Log "Upgrading $toolNameToCheck..."
+        & uv tool upgrade $toolNameToCheck
     } else {
+        Write-Log "Installing $ToolName..."
         & uv tool install $ToolName
     }
 
@@ -740,8 +734,8 @@ Write-Host ""
 # Phase 4: Install LLM Core
 # ============================================================================
 
-# Install llm via uv
-if (-not (Install-UvTool -ToolName "llm")) {
+# Install llm via uv from c0ffee0wl fork (includes markdown markup enhancements)
+if (-not (Install-UvTool -ToolName "git+https://github.com/c0ffee0wl/llm" -IsGitPackage $true)) {
     Write-ErrorLog "Failed to install/upgrade llm"
     exit 1
 }
@@ -942,6 +936,7 @@ $plugins = @(
     "llm-fragments-site-text",
     "llm-fragments-pdf",
     "llm-fragments-github",
+    "llm-fragments-dir",
     "llm-jq"
 )
 

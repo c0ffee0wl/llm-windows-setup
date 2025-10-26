@@ -71,7 +71,7 @@ Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) pro
 ## What Gets Installed
 
 ### Core Tools
-- **llm** - Simon Willison's LLM CLI tool
+- **[llm](https://github.com/c0ffee0wl/llm)** - LLM CLI tool (fork with markdown markup enhancements, originally by Simon Willison - [Documentation](https://llm.datasette.io/))
 - **Claude Code** - Anthropic's agentic coding CLI
 - **OpenCode** - AI coding agent for terminal
 - **uv** - Modern Python package installer
@@ -88,6 +88,7 @@ Based on the [llm-linux-setup](https://github.com/c0ffee0wl/llm-linux-setup) pro
 - **llm-fragments-site-text** - Web page content extraction
 - **llm-fragments-pdf** - PDF content extraction
 - **llm-fragments-github** - GitHub repository integration
+- **llm-fragments-dir** - Load all text files from a local directory recursively
 - **llm-jq** - JSON processing tool
 - **llm-templates-fabric** - Fabric prompt templates
 - **llm-gemini** - Google Gemini models integration
@@ -435,6 +436,7 @@ This Windows version differs from the [Linux version](https://github.com/c0ffee0
   - `llm-common.sh` - Shared configuration
   - `llm-integration.bash` - Bash-specific widgets
   - `llm-integration.zsh` - Zsh-specific widgets
+- **llm-zsh-plugin** - Tab completion for llm commands (Zsh only)
 - Clipboard aliases via `xsel` (macOS compatibility layer)
 
 ### Session Recording & Context System
@@ -458,11 +460,9 @@ This Windows version differs from the [Linux version](https://github.com/c0ffee0
 ### LLM Assistant Template Differences
 
 **Windows (`assistant.yaml`):**
-- **Context:** Windows 10/11/Server, PowerShell, optional WSL2
 - **Tools:** `context` only
 
 **Linux (`assistant.yaml`):**
-- **Context:** Kali Linux, Ubuntu, Debian, Xfce, Terminator, Zsh
 - **Tools:** `context` + `sandboxed_shell` (bubblewrap-based safe command execution)
 
 ### Tools & Features Exclusive to Linux Version
@@ -476,37 +476,33 @@ The Linux version includes several additional tools not present in the Windows v
 - Supports multiple document sources (Git repos, URLs, PDFs, DOCX, directories)
 - Auto-configured with Azure OpenAI settings
 
+#### Additional LLM Plugins
+
+The Linux version includes several additional LLM plugins not available in the Windows version:
+
+**Fragment Plugins:**
+- **llm-fragments-youtube-transcript** - YouTube video transcript extraction with metadata
+
+**Tool Plugins:**
+- **llm-tools-sandboxed-shell** - Safe shell command execution (covered in Sandboxed Command Execution section below)
+- **llm-tools-patch** - File manipulation tools (read, write, edit, multi_edit, info) with approval workflow
+- **llm-tools-llm-functions** - Bridge for llm-functions framework (covered in Developer Tools section below)
+- **llm-tools-quickjs** - JavaScript execution environment for AI
+
 #### Sandboxed Command Execution
 - **llm-tools-sandboxed-shell** - Execute shell commands safely using bubblewrap
 - Isolated environment (read-only root, no network access, Linux namespaces)
 - Built into the Linux assistant template by default
 - Requires bubblewrap (automatically installed)
 
-#### Session Recording
-- **asciinema** - Terminal session recorder (built from source)
-- Advanced `.cast` format with full terminal output capture
-- Tmux/screen pane-specific recording support
-
 #### Developer Tools & Frameworks
 - **Rust/Cargo toolchain** - Required for building aichat and argc
 - **argc** - Bash CLI framework and command runner (enables llm-functions integration)
-- **llm-tools-llm-functions bridge** - Integration with llm-functions framework (build custom LLM tools in Bash/JS/Python)
+- **yek** - Fast Rust-based repository to LLM-friendly text converter (230x faster than gitingest)
 
 #### Document Processing
 - **poppler-utils** - PDF text extraction (pdftotext)
 - **pandoc** - Document converter (DOCX support for RAG)
-
-### Features Exclusive to Windows Version
-
-**ZIP-to-Git Conversion (Phase 2.5):**
-- If repository downloaded as ZIP, offers to convert to git repository
-- Enables auto-updates via git pull
-- Automatic remote configuration and branch setup
-
-**PowerShell Transcript Integration:**
-- Native Windows session logging (no external dependencies)
-- Works seamlessly with PowerShell's built-in transcription
-- Multi-session support via `$env:TRANSCRIPT_LOG_FILE`
 
 ### What's the Same
 
@@ -518,7 +514,9 @@ Both versions share these core features:
 - ✅ **AI command completion** - Ctrl+N intelligent command suggestions via `llm cmdcomp`
 - ✅ **Context system** - Query terminal history with AI
 - ✅ **Custom templates** - `assistant.yaml` (security/IT expertise) and `code.yaml` (clean code output)
-- ✅ **LLM plugins** - gemini, openrouter, anthropic, fragments (site-text, pdf, github), jq, sqlite
+- ✅ **Core LLM plugins** - gemini, openrouter, anthropic, vertex, jq, sqlite, cmd, cmd-comp, fabric templates
+- ✅ **Shared fragment plugins** - site-text, pdf, github, dir (Linux has 1 additional: youtube-transcript)
+- ✅ **Shared tool plugins** - sqlite, context (Linux has 3 additional: quickjs, patch, sandboxed-shell)
 - ✅ **Additional tools** - gitingest, files-to-prompt, Claude Code, OpenCode
 - ✅ **Smart template application** - Shell wrapper auto-applies assistant template
 

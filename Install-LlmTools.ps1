@@ -200,8 +200,16 @@ function Install-UvTool {
     $toolInstalled = & uv tool list 2>&1 | Select-String $toolNameToCheck
 
     if ($toolInstalled) {
-        Write-Log "Upgrading $toolNameToCheck..."
-        & uv tool upgrade $toolNameToCheck
+        if ($IsGitPackage) {
+            # For git packages, force reinstall to ensure we get the git source
+            # uv tool upgrade would upgrade from the ORIGINAL source (PyPI vs git)
+            # This ensures migration from PyPI version to git fork works correctly
+            Write-Log "Force reinstalling $toolNameToCheck from git source..."
+            & uv tool install --force $ToolName
+        } else {
+            Write-Log "Upgrading $toolNameToCheck..."
+            & uv tool upgrade $toolNameToCheck
+        }
     } else {
         Write-Log "Installing $ToolName..."
         & uv tool install $ToolName

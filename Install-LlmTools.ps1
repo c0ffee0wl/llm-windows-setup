@@ -937,6 +937,7 @@ Write-Host ""
 
 # Regular plugins
 $plugins = @(
+    "pymupdf_layout",
     "llm-gemini",
     "llm-openrouter",
     "llm-anthropic",
@@ -945,7 +946,8 @@ $plugins = @(
     "llm-fragments-pdf",
     "llm-fragments-github",
     "llm-fragments-dir",
-    "llm-jq"
+    "llm-jq",
+    "llm-sort"
 )
 
 # Git-based plugins (may require git to be properly configured)
